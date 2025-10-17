@@ -1,1189 +1,1040 @@
 import { connect } from "cloudflare:sockets";
 
+const proxyListURL = 'https://raw.githubusercontent.com/jaka2m/botak/refs/heads/main/cek/proxyList.txt';
+const namaWeb = 'GEO PROJECT'
+const telegrambot = 'https://t.me/VLTRSSbot'
+const channelku = 'https://t.me/testikuy_mang'
+const telegramku = 'https://geoproject.biz.id/circle-flags/telegram.png'
+const whatsappku = 'https://geoproject.biz.id/circle-flags/whatsapp.png'
+const ope = 'https://geoproject.biz.id/circle-flags/options.png'
+
 // Variables
-const rootDomain = "gpj1.dpdns.org"; // Ganti dengan domain utama kalian
-const serviceName = "gamang"; // Ganti dengan nama workers kalian
+const rootDomain = "krikkrik.xyz"; // Ganti dengan domain utama kalian
+const serviceName = "jamak"; // Ganti dengan nama workers kalian
 const apiKey = "e1d2b64d4da5e42f24c88535f12f21bc84d06"; // Ganti dengan Global API key kalian (https://dash.cloudflare.com/profile/api-tokens)
 const apiEmail = "paoandest@gmail.com"; // Ganti dengan email yang kalian gunakan
 const accountID = "723b4d7d922c6af940791b5624a7cb05"; // Ganti dengan Account ID kalian (https://dash.cloudflare.com -> Klik domain yang kalian gunakan)
-const zoneID = "c812fcb5da2a06fa1b03cac6f8e2fe06"; // Ganti dengan Zone ID kalian (https://dash.cloudflare.com -> Klik domain yang kalian gunakan)
-const ownerPassword = ".";
-let isApiReady = false;
-let prxIP = "";
-let cachedPrxList = [];
+const zoneID = "ec634538140c7093e6d060fc87a83c02"; // Ganti dengan Zone ID kalian (https://dash.cloudflare.com -> Klik domain yang kalian gunakan)
+const ownerPassword = "7";
 
-// Constant
-const WHATSAPP_NUMBER = "082339191527";
-const TELEGRAM_USERNAME = "sampiiii";
-const horse = "dHJvamFu";
-const flash = "dmxlc3M=";
-const v2 = "djJyYXk=";
-const neko = "Y2xhc2g=";
+const wildcards = [];
 
-const APP_DOMAIN = `${serviceName}.${rootDomain}`;
-const PORTS = [443, 80];
-const PROTOCOLS = [atob(horse), atob(flash), "ss"];
-const PRX_BANK_URL = "https://raw.githubusercontent.com/jaka2m/botak/refs/heads/main/cek/proxyList.txt";
-// const DOH_URL = "https://1.1.1.1/dns-query";
-// const DOH_URL = "https://8.8.8.8/dns-query";
-const DOH_URL = "https://1.1.1.1/dns-query";
-const PRX_HEALTH_CHECK_API = "https://geovpn.vercel.app/check";
-const CONVERTER_URL = "https://api.foolvpn.me/convert";
-const DONATE_LINK = "https://github.com/jaka1m/project/raw/main/BAYAR.jpg";
-const BAD_WORDS_LIST =
-  "https://gist.githubusercontent.com/adierebel/a69396d79b787b84d89b45002cb37cd6/raw/6df5f8728b18699496ad588b3953931078ab9cf1/kata-kasar.txt";
-const PRX_PER_PAGE = 24;
+// CloudflareApi Class
+class CloudflareApi {
+  constructor() {
+    this.bearer = `Bearer ${apiKey}`;
+    this.accountID = accountID;
+    this.zoneID = zoneID;
+    this.apiEmail = apiEmail;
+    this.apiKey = apiKey;
+
+    this.headers = {
+      Authorization: this.bearer,
+      "X-Auth-Email": this.apiEmail,
+      "X-Auth-Key": this.apiKey,
+      "Content-Type": "application/json",
+    };
+  }
+
+  async getDomainList() {
+    const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains`;
+    const res = await fetch(url, {
+      headers: this.headers,
+    });
+
+    if (res.status == 200) {
+      const respJson = await res.json();
+      return respJson.result.filter((data) => data.service == serviceName);
+    }
+    return [];
+  }
+
+  async registerDomain(domain) {
+    domain = domain.toLowerCase();
+    const suffix = `.${serviceName}.${rootDomain}`;
+    let fullDomain = domain;
+
+    // If the user-provided domain doesn't already end with the suffix, append it.
+    if (!domain.endsWith(suffix)) {
+      fullDomain = domain + suffix;
+    }
+
+    const registeredDomains = await this.getDomainList();
+
+    if (registeredDomains.some(d => d.hostname === fullDomain)) {
+      return 409; // Conflict
+    }
+
+    const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains`;
+    const res = await fetch(url, {
+      method: "PUT",
+      body: JSON.stringify({
+        environment: "production",
+        hostname: fullDomain,
+        service: serviceName,
+        zone_id: this.zoneID,
+      }),
+      headers: this.headers,
+    });
+
+    return res.status;
+  }
+
+  async deleteDomain(domainId) {
+    const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains/${domainId}`;
+    const res = await fetch(url, {
+      method: "DELETE",
+      headers: this.headers,
+    });
+    return res.status;
+  }
+}
+
+// Global Variables
+let cachedProxyList = [];
+let proxyIP = "";
+let pathinfo = "/Free-VPN-CF-Geo-Project/";
+
+// Constants
+const SIDEBAR_COMPONENT = `
+ <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+            background: linear-gradient(165deg, #1e293b 0%, #0f172a 100%);
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.4);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-open {
+            transform: translateX(0);
+        }
+
+        .sidebar-closed {
+            transform: translateX(-100%);
+        }
+
+        .menu-item {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            margin-bottom: 6px;
+        }
+
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.15), transparent);
+            transition: left 0.6s;
+        }
+
+        .menu-item:hover::before {
+            left: 100%;
+        }
+
+        .menu-item:hover {
+            background: rgba(30, 41, 59, 0.7);
+            transform: translateX(6px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .menu-icon {
+            transition: all 0.3s ease;
+        }
+
+        .menu-item:hover .menu-icon {
+            transform: scale(1.1);
+        }
+
+        .overlay {
+            transition: opacity 0.3s ease;
+        }
+
+        .logo-text {
+            background: linear-gradient(90deg, #60a5fa, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            background-size: 200% auto;
+            animation: shimmer 3s infinite linear;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 0% center;
+            }
+            50% {
+                background-position: 100% center;
+            }
+            100% {
+                background-position: 0% center;
+            }
+        }
+
+        .active-indicator {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 0;
+            background: linear-gradient(to bottom, #3b82f6, #60a5fa);
+            border-radius: 0 4px 4px 0;
+            transition: height 0.4s ease;
+        }
+
+        .menu-item:hover .active-indicator {
+            height: 60%;
+        }
+
+        .menu-item.active .active-indicator {
+            height: 60%;
+        }
+
+        .menu-item.active {
+            background: rgba(30, 41, 59, 0.8);
+            box-shadow: 0 4px 12px rgba(30, 64, 175, 0.2);
+        }
+
+        .profile-image {
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+            transition: all 0.3s ease;
+        }
+
+        .profile-image:hover {
+            transform: scale(1.05);
+            filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.4));
+        }
+
+        .menu-badge {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+            color: white;
+            font-size: 0.6rem;
+            padding: 1px 6px;
+            border-radius: 8px;
+        }
+
+        .floating-button {
+            box-shadow: 0 6px 15px rgba(37, 99, 235, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .floating-button:hover {
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            border: 2px solid #1e293b;
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+    <div x-data="{ sidebarOpen: false, activeMenu: 'create' }" @keydown.escape.window="sidebarOpen = false" class="relative">
+        <script>
+            function toggleDarkMode() {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.documentElement.classList.add('dark');
+                    localStorage.setItem('theme', 'dark');
+                }
+            }
+        </script>
+        <button
+            @click="sidebarOpen = true"
+            class="floating-button fixed top-6 left-6 z-50 p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white focus:outline-none"
+        >
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+
+        <div
+            x-show="sidebarOpen"
+            @click="sidebarOpen = false"
+            class="overlay fixed inset-0 bg-black bg-opacity-60 z-40 backdrop-blur-sm"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+        ></div>
+
+        <div
+            :class="{'sidebar-open': sidebarOpen, 'sidebar-closed': !sidebarOpen}"
+            class="sidebar fixed top-0 left-0 h-full w-72 p-5 z-50"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="transform -translate-x-full"
+            x-transition:enter-end="transform translate-x-0"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="transform translate-x-0"
+            x-transition:leave-end="transform -translate-x-full"
+        >
+            <div class="flex justify-between items-center mb-8 pt-2">
+                <div class="flex items-center">
+                    <div class="relative mr-3">
+                        <img
+                            src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=crop&w=100&q=80"
+                            alt="Profile"
+                            class="profile-image w-10 h-10 rounded-full object-cover border-2 border-blue-500"
+                        >
+                        <div class="status-dot bg-green-500"></div>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold logo-text">VPN Manager</h2>
+                        <p class="text-xs text-slate-400 mt-1">Secure Connection</p>
+                    </div>
+                </div>
+                <button
+                    @click="sidebarOpen = false"
+                    class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-all duration-200 focus:outline-none hover:rotate-90"
+                >
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <nav class="space-y-1">
+                <div class="search-quantum flex flex-col items-center mb-4">
+                    <div class="flex w-full items-center gap-2.5">
+                        <input
+                            type="text"
+                            id="search-bar"
+                            placeholder="Search..."
+                            class="flex-1 h-10 pl-3 border-2 border-slate-700 rounded-lg bg-slate-800 text-slate-300 font-medium outline-none transition-all duration-300 focus:bg-slate-700 focus:placeholder-slate-400 focus:text-slate-200 placeholder-slate-500"
+                        >
+                        <button id="search-button" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-full p-2 transition-colors duration-200 shadow-lg z-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="h-5 w-5 text-white">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <a
+                    href="/web"
+                    class="menu-item flex items-center py-3 px-3 relative"
+                    :class="{'active': activeMenu === 'create'}"
+                    @click="activeMenu = 'create'"
+                >
+                    <div class="active-indicator"></div>
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center mr-3 shadow-md">
+                        <svg class="h-5 w-5 menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-medium text-sm">Create VPN</div>
+                        <div class="text-xs text-slate-400 mt-0.5">Buat koneksi VPN baru</div>
+                    </div>
+                    <span class="menu-badge">New</span>
+                </a>
+
+                <a
+                    href="/vpn"
+                    class="menu-item flex items-center py-3 px-3 relative"
+                    :class="{'active': activeMenu === 'converter'}"
+                    @click="activeMenu = 'converter'"
+                >
+                    <div class="active-indicator"></div>
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mr-3 shadow-md">
+                        <svg class="h-5 w-5 menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-medium text-sm">Converter</div>
+                        <div class="text-xs text-slate-400 mt-0.5">Konversi konfigurasi</div>
+                    </div>
+                </a>
+
+                <a
+                    href="/kuota"
+                    class="menu-item flex items-center py-3 px-3 relative"
+                    :class="{'active': activeMenu === 'quota'}"
+                    @click="activeMenu = 'quota'"
+                >
+                    <div class="active-indicator"></div>
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center mr-3 shadow-md">
+                        <svg class="h-5 w-5 menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-medium text-sm">Cek Kuota</div>
+                        <div class="text-xs text-slate-400 mt-0.5">Monitor penggunaan data</div>
+                    </div>
+                </a>
+
+                <a
+                    href="/checker"
+                    class="menu-item flex items-center py-3 px-3 relative"
+                    :class="{'active': activeMenu === 'checker'}"
+                    @click="activeMenu = 'checker'"
+                >
+                    <div class="active-indicator"></div>
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3 shadow-md">
+                        <svg class="h-5 w-5 menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-medium text-sm">Cek MyIP</div>
+                        <div class="text-xs text-slate-400 mt-0.5">Informasi alamat IP</div>
+                    </div>
+                </a>
+
+                <a
+                    href="/settings"
+                    class="menu-item flex items-center py-3 px-3 relative"
+                    :class="{'active': activeMenu === 'settings'}"
+                    @click="activeMenu = 'settings'"
+                >
+                    </a>
+            </nav>
+
+            <div class="absolute bottom-5 left-5 right-5">
+                <div class="border-t border-slate-700 pt-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center shadow-md">
+                                <span class="text-white text-sm font-semibold">U</span>
+                            </div>
+                            <div class="ml-2">
+                                <div class="font-medium text-sm">User Name</div>
+                                <div class="text-xs text-slate-400">Premium Member</div>
+                            </div>
+                        </div>
+                        <button onclick="toggleDarkMode()"
+                            class="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition-colors duration-200"
+                            title="Toggle Dark Mode">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+`;
+
 const WS_READY_STATE_OPEN = 1;
 const WS_READY_STATE_CLOSING = 2;
-const CORS_HEADER_OPTIONS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
-  "Access-Control-Max-Age": "86400",
-};
 
-async function getKVPrxList(kvPrxUrl) {
-  if (!kvPrxUrl) {
-    return {};
+async function getProxyList(forceReload = false) {
+  if (!cachedProxyList.length || forceReload) {
+    if (!proxyListURL) {
+      throw new Error("No Proxy List URL Provided!");
+    }
+
+    const proxyBank = await fetch(proxyListURL);
+    if (proxyBank.status === 200) {
+      const proxyString = ((await proxyBank.text()) || "").split("\n").filter(Boolean);
+      cachedProxyList = proxyString
+        .map((entry) => {
+          const [proxyIP, proxyPort, country, org] = entry.split(",");
+          return {
+            proxyIP: proxyIP || "Unknown",
+            proxyPort: proxyPort || "Unknown",
+            country: country.toUpperCase() || "Unknown",
+            org: org || "Unknown Org",
+          };
+        })
+        .filter(Boolean);
+    }
   }
 
-  const kvPrx = await fetch(kvPrxUrl);
-  if (kvPrx.status == 200) {
-    return await kvPrx.json();
-  } else {
-    return {};
-  }
+  return cachedProxyList;
 }
 
-async function getPrxList(prxBankUrl = PRX_BANK_URL) {
-  /**
-   * Format:
-   *
-   * <IP>,<Port>,<Country ID>,<ORG>
-   * Contoh:
-   * 1.1.1.1,443,SG,Cloudflare Inc.
-   */
-  if (!prxBankUrl) {
-    throw new Error("No URL Provided!");
-  }
-
-  const prxBank = await fetch(prxBankUrl);
-  if (prxBank.status == 200) {
-    const text = (await prxBank.text()) || "";
-
-    const prxString = text.split("\n").filter(Boolean);
-    cachedPrxList = prxString
-      .map((entry) => {
-        const [prxIP, prxPort, country, org] = entry.split(",").map(item => item.trim());
-        return {
-          prxIP: prxIP || "Unknown",
-          prxPort: prxPort || "Unknown",
-          country: country || "Unknown",
-          org: org || "Unknown Org",
-        };
-      })
-      .filter(Boolean);
-  }
-
-  return cachedPrxList;
-}
-
-async function reverseWeb(request, target, targetPath) {
+async function reverseProxy(request, target) {
   const targetUrl = new URL(request.url);
-  const targetChunk = target.split(":");
-
-  targetUrl.hostname = targetChunk[0];
-  targetUrl.port = targetChunk[1]?.toString() || "443";
-  targetUrl.pathname = targetPath || targetUrl.pathname;
+  targetUrl.hostname = target;
 
   const modifiedRequest = new Request(targetUrl, request);
-
   modifiedRequest.headers.set("X-Forwarded-Host", request.headers.get("Host"));
 
   const response = await fetch(modifiedRequest);
-
   const newResponse = new Response(response.body, response);
-  for (const [key, value] of Object.entries(CORS_HEADER_OPTIONS)) {
-    newResponse.headers.set(key, value);
-  }
   newResponse.headers.set("X-Proxied-By", "Cloudflare Worker");
 
   return newResponse;
-}
-
-async function generateSubscription(
-  {
-    countryCodes = [],
-    limit = 10,
-    vpnType = null,
-    ports = null,
-    bug = null,
-    useWildcard = false,
-    prxBankUrl = null,
-    domain = null
-  }
-) {
-    const filterVPN = vpnType ? [vpnType] : PROTOCOLS;
-    const filterPort = ports || PORTS;
-    const filterCC = countryCodes;
-    const filterLimit = limit;
-    
-    const baseHost = domain || APP_DOMAIN;
-    const address = bug || baseHost;
-    const sniHost = useWildcard && bug ? `${bug}.${baseHost}` : baseHost;
-
-    const prxList = await getPrxList(prxBankUrl || PRX_BANK_URL)
-        .then((prxs) => {
-          if (filterCC.length) {
-            return prxs.filter((prx) => filterCC.includes(prx.country));
-          }
-          return prxs;
-        })
-        .then((prxs) => {
-          shuffleArray(prxs);
-          return prxs;
-        });
-
-    const uuid = crypto.randomUUID();
-    const result = [];
-    for (const prx of prxList) {
-        const uri = new URL(`${atob(horse)}://${address}`);
-        uri.searchParams.set("encryption", "none");
-        uri.searchParams.set("type", "ws");
-        uri.searchParams.set("host", sniHost);
-
-        for (const port of filterPort) {
-          for (const protocol of filterVPN) {
-            if (result.length >= filterLimit) break;
-
-            uri.protocol = protocol;
-            uri.port = port.toString();
-            if (protocol == "ss") {
-              uri.username = btoa(`none:${uuid}`);
-              uri.searchParams.set(
-                "plugin",
-                `${atob(v2)}-plugin${port == 80 ? "" : ";tls"};mux=0;mode=websocket;path=/Free-VPN-Geo-Project/${prx.prxIP}-${
-                  prx.prxPort
-                };host=${sniHost}`
-              );
-            } else {
-              uri.username = uuid;
-              uri.searchParams.delete("plugin");
-            }
-
-            uri.searchParams.set("security", port == 443 ? "tls" : "none");
-            uri.searchParams.set("sni", port == 80 && protocol == atob(flash) ? "" : sniHost);
-            uri.searchParams.set("path", `/Free-VPN-Geo-Project/${prx.prxIP}-${prx.prxPort}`);
-
-            uri.hash = `${result.length + 1} ${getFlagEmoji(prx.country)} ${prx.org} WS ${
-              port == 443 ? "TLS" : "NTLS"
-            } [${serviceName}]`;
-            result.push(uri.toString());
-          }
-          if (result.length >= filterLimit) break;
-        }
-        if (result.length >= filterLimit) break;
-    }
-    
-    return result;
-}
-
-function getPaginationWithEllipsis(currentPage, totalPages) {
-    if (totalPages <= 5) {
-        return Array.from({
-            length: totalPages
-        }, (_, i) => i + 1);
-    }
-
-    if (currentPage <= 3) {
-        return [1, 2, 3, '...', totalPages];
-    }
-
-    if (currentPage >= totalPages - 2) {
-        return [1, '...', totalPages - 2, totalPages - 1, totalPages];
-    }
-
-    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
-}
-
-function generatePaginationHTML(currentPage, totalPages, baseUrl) {
-    if (totalPages <= 1) return '';
-
-    let html = '<ul class="flex justify-center items-center space-x-2">';
-    const pageNumbers = getPaginationWithEllipsis(currentPage, totalPages);
-
-    // Previous Button
-    const prevDisabled = currentPage === 1;
-    // Menggunakan '◀️' untuk tombol Previous
-    html += '<li><button onclick="navigateTo(\'' + (prevDisabled ? '#' : baseUrl + (currentPage - 2)) + '\')" class="px-2 py-1 rounded-lg btn-gradient ' + (prevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80') + '" ' + (prevDisabled ? 'disabled' : '') + '>◀️</button></li>';
-
-    // Page Number Buttons
-    pageNumbers.forEach(num => {
-        if (num === '...') {
-            html += '<li><span class="px-2 py-1">...</span></li>';
-        } else {
-            const isActive = num === currentPage;
-            html += '<li><button onclick="navigateTo(\'' + baseUrl + (num - 1) + '\')" class="px-2 py-1 rounded-lg btn-gradient ' + (isActive ? 'bg-blue-600 font-bold' : 'hover:opacity-80') + '">' + num + '</button></li>';
-        }
-    });
-
-    // Next Button
-    const nextDisabled = currentPage === totalPages;
-    // Menggunakan '▶️' untuk tombol Next
-    html += '<li><button onclick="navigateTo(\'' + (nextDisabled ? '#' : baseUrl + currentPage) + '\')" class="px-2 py-1 rounded-lg btn-gradient ' + (nextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80') + '" ' + (nextDisabled ? 'disabled' : '') + '>▶️</button></li>';
-
-    html += '</ul>';
-    return html;
-}
-
-function getAllConfig(request, hostName, prxList, page = 0, selectedProtocol = null, selectedPort = null, wildcardDomains = [], rootDomain) {
-    const startIndex = PRX_PER_PAGE * page;
-    const totalProxies = prxList.length;
-    const totalPages = Math.ceil(totalProxies / PRX_PER_PAGE) || 1;
-
-    try {
-        const uuid = crypto.randomUUID();
-
-        // If a custom host is selected, the host/SNI will be a combination.
-        // Otherwise, it's just the application's domain.
-        const effectiveHost = hostName === APP_DOMAIN ? APP_DOMAIN : `${hostName}.${APP_DOMAIN}`;
-
-        // Build URI
-        // The address is the selected host (e.g., ava.game.naver.com or the app domain)
-        const uri = new URL(`${atob(horse)}://${hostName}`);
-        uri.searchParams.set("encryption", "none");
-        uri.searchParams.set("type", "ws");
-        uri.searchParams.set("host", effectiveHost);
-
-        // Build HTML
-        const document = new Document(request, wildcardDomains, rootDomain, startIndex);
-        document.setTitle("Free Vless Trojan SS");
-        document.setTotalProxy(totalProxies);
-        document.setPage(page + 1, totalPages);
-
-        for (let i = startIndex; i < startIndex + PRX_PER_PAGE; i++) {
-            const prx = prxList[i];
-            if (!prx) break;
-
-            const {
-                prxIP,
-                prxPort,
-                country,
-                org
-            } = prx;
-
-            uri.searchParams.set("path", `/Free-VPN-Geo-Project/${prxIP}-${prxPort}`);
-
-            const protocolsToUse = selectedProtocol && selectedProtocol !== 'all' ? [selectedProtocol] : PROTOCOLS;
-            const portsToUse = selectedPort && selectedPort !== 'all' ? [parseInt(selectedPort)] : PORTS;
-
-            const prxs = [];
-            for (const port of portsToUse) {
-                uri.port = port.toString();
-                uri.hash = `${i + 1} ${getFlagEmoji(country)} ${org} WS ${port == 443 ? "TLS" : "NTLS"} [${serviceName}]`;
-                for (const protocol of protocolsToUse) {
-                    // Special exceptions
-                    if (protocol === "ss") {
-                        uri.username = btoa(`none:${uuid}`);
-                        uri.searchParams.set(
-                            "plugin",
-                            `${atob(v2)}-plugin${
-                                port == 80 ? "" : ";tls"
-                            };mux=0;mode=websocket;path=/Free-VPN-Geo-Project/${prxIP}-${prxPort};host=${effectiveHost}`
-                        );
-                    } else {
-                        uri.username = uuid;
-                        uri.searchParams.delete("plugin");
-                    }
-
-                    uri.protocol = protocol;
-                    uri.searchParams.set("security", port == 443 ? "tls" : "none");
-                    uri.searchParams.set("sni", port == 80 && protocol == atob(flash) ? "" : effectiveHost);
-
-                    // Build VPN URI
-                    prxs.push(uri.toString());
-                }
-            }
-            document.registerProxies({
-                prxIP,
-                prxPort,
-                country,
-                org,
-            },
-                prxs
-            );
-        }
-
-        const showingFrom = totalProxies > 0 ? startIndex + 1 : 0;
-        const showingTo = Math.min(startIndex + PRX_PER_PAGE, totalProxies);
-        const paginationInfo = `Showing ${showingFrom} to ${showingTo} of ${totalProxies} proxies`;
-        const paginationHTML = generatePaginationHTML(page + 1, totalPages, '/sub/');
-
-        document.setPagination(paginationInfo, paginationHTML);
-
-
-        return document.build();
-    } catch (error) {
-        return `An error occurred while generating the ${atob(flash).toUpperCase()} configurations. ${error}`;
-    }
 }
 
 export default {
   async fetch(request, env, ctx) {
     try {
       const url = new URL(request.url);
-      const upgradeHeader = request.headers.get("Upgrade");
 
-      // Gateway check
-      if (apiKey && apiEmail && accountID && zoneID) {
-        isApiReady = true;
-      }
+      // API for wildcard management
+      if (url.pathname.startsWith('/api/v1/domains')) {
+        const cfApi = new CloudflareApi();
 
-      // Handle prx client
-      if (upgradeHeader === "websocket") {
-        const prxMatch = url.pathname.match(
-          /^\/Free-VPN-Geo-Project\/(.+[:=-]\d+)$/
-        );
-
-        if (url.pathname.length == 3 || url.pathname.match(",")) {
-          // Contoh: /ID, /SG, dll
-          const prxKeys = url.pathname.replace("/", "").toUpperCase().split(",");
-          const prxKey = prxKeys[Math.floor(Math.random() * prxKeys.length)];
-          const kvPrx = await getKVPrxList(env.KV_PRX_URL);
-
-          prxIP = kvPrx[prxKey][Math.floor(Math.random() * kvPrx[prxKey].length)];
-        } else if (prxMatch) {
-          prxIP = prxMatch[1];
-        } else {
-          prxIP = "";
-        }
-        return await websocketHandler(request, env);
-      }
-
-      if (url.pathname.startsWith("/sub/v2rayng")) {
-        const vpnType = url.searchParams.get("type");
-        const bug = url.searchParams.get("bug");
-        const useTls = url.searchParams.get("tls") === "true";
-        const countryCodes = url.searchParams.get("country")?.toUpperCase().split(",");
-        const limit = parseInt(url.searchParams.get("limit")) || 10;
-        const prxBankUrl = url.searchParams.get("prx-list") || env.PRX_BANK_URL;
-
-        let ports;
-        if (url.searchParams.has("tls")) {
-            ports = useTls ? [443] : [80];
-        } else {
-            ports = PORTS;
+        if (request.method === 'GET') {
+          const domains = await cfApi.getDomainList();
+          return new Response(JSON.stringify(domains), {
+            headers: { 'Content-Type': 'application/json' },
+          });
         }
 
-        const result = await generateSubscription({
-            countryCodes: countryCodes || [],
-            limit: limit,
-            vpnType: vpnType,
-            ports: ports,
-            bug: bug,
-            prxBankUrl: prxBankUrl
-        });
-        
-        return new Response(result.join("\n"), {
-            status: 200,
-            headers: { ...CORS_HEADER_OPTIONS, "Content-Type": "text/plain;charset=utf-8" },
-        });
-      } else if (url.pathname.startsWith("/api/v1/sub")) {
-        const filterCC = url.searchParams.get("cc")?.split(",") || [];
-        const filterPort = url.searchParams.get("port")?.split(",").map(p => parseInt(p)) || PORTS;
-        const filterVPN = url.searchParams.get("vpn")?.split(",") || PROTOCOLS;
-        const filterLimit = parseInt(url.searchParams.get("limit")) || 10;
-        const filterFormat = url.searchParams.get("format") || "raw";
-        const bug = url.searchParams.get("bug");
-        const useWildcard = url.searchParams.get("wc") === 'true';
-        const domain = url.searchParams.get("domain") || APP_DOMAIN;
-        const prxBankUrl = url.searchParams.get("prx-list") || env.PRX_BANK_URL;
-
-        const result = await generateSubscription({
-            countryCodes: filterCC,
-            limit: filterLimit,
-            vpnType: filterVPN,
-            ports: filterPort,
-            bug: bug,
-            useWildcard: useWildcard,
-            domain: domain,
-            prxBankUrl: prxBankUrl
-        });
-
-        let finalResult = "";
-        switch (filterFormat) {
-            case "raw":
-                finalResult = result.join("\n");
-                break;
-            case atob(v2):
-                finalResult = btoa(result.join("\n"));
-                break;
-            case atob(neko):
-            case "sfa":
-            case "bfr":
-                const res = await fetch(CONVERTER_URL, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        url: result.join(","),
-                        format: filterFormat,
-                        template: "cf",
-                    }),
-                });
-                if (res.status == 200) {
-                    finalResult = await res.text();
-                } else {
-                    return new Response(res.statusText, {
-                        status: res.status,
-                        headers: { ...CORS_HEADER_OPTIONS },
-                    });
-                }
-                break;
+        if (request.method === 'POST') {
+          try {
+            const { domain } = await request.json();
+            if (!domain) {
+              return new Response('Domain is required', { status: 400 });
+            }
+            const status = await cfApi.registerDomain(domain);
+            return new Response(null, { status });
+          } catch (e) {
+            return new Response('Invalid JSON', { status: 400 });
+          }
         }
 
-        return new Response(finalResult, {
-            status: 200,
-            headers: { ...CORS_HEADER_OPTIONS },
-        });
-      } else if (url.pathname.startsWith("/sub")) {
-        const page = url.pathname.match(/^\/sub\/(\d+)$/);
-        const pageIndex = parseInt(page ? page[1] : "0");
-
-        // Queries
-        const hostname = url.searchParams.get("host") || APP_DOMAIN;
-        const countrySelect = url.searchParams.get("cc")?.toUpperCase();
-        const selectedProtocol = url.searchParams.get("vpn");
-        const selectedPort = url.searchParams.get("port");
-        const searchKeywords = url.searchParams.get("search")?.toLowerCase() || "";
-        const prxBankUrl = url.searchParams.get("prx-list") || env.PRX_BANK_URL;
-        let prxList = (await getPrxList(prxBankUrl)).filter((prx) => {
-          // Filter prxs by Country
-          if (countrySelect && countrySelect !== 'ALL') {
-            if (prx.country !== countrySelect) return false;
-          }
-
-          // Filter by search keywords
-          if (searchKeywords) {
-              const { prxIP, prxPort, country, org } = prx;
-              if (
-                  !prxIP.toLowerCase().includes(searchKeywords) &&
-                  !prxPort.toLowerCase().includes(searchKeywords) &&
-                  !country.toLowerCase().includes(searchKeywords) &&
-                  !org.toLowerCase().includes(searchKeywords)
-              ) {
-                  return false;
-              }
-          }
-
-          return true;
-        });
-
-        const cloudflareApi = new CloudflareApi();
-        const wildcardDomains = await cloudflareApi.getDomainList();
-
-        const result = getAllConfig(request, hostname, prxList, pageIndex, selectedProtocol, selectedPort, wildcardDomains, rootDomain);
-        return new Response(result, {
-          status: 200,
-          headers: { "Content-Type": "text/html;charset=utf-8" },
-        });
-      } else if (url.pathname.startsWith("/check")) {
-        const target = url.searchParams.get("target").split(":");
-        const result = await checkPrxHealth(target[0], target[1] || "443");
-
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: {
-            ...CORS_HEADER_OPTIONS,
-            "Content-Type": "application/json",
-          },
-        });
-      } else if (url.pathname.startsWith("/api/v1")) {
-        const apiPath = url.pathname.replace("/api/v1", "");
-
-        if (apiPath.startsWith("/domains")) {
-          if (!isApiReady) {
-            return new Response("Api not ready", {
-              status: 500,
-            });
-          }
-
-          const wildcardApiPath = apiPath.replace("/domains", "");
-          const cloudflareApi = new CloudflareApi();
-
-          if (wildcardApiPath == "/get") {
-            const domains = await cloudflareApi.getDomainList();
-            return new Response(JSON.stringify(domains), {
-              headers: {
-                ...CORS_HEADER_OPTIONS,
-              },
-            });
-          } else if (wildcardApiPath == "/put") {
-            const domain = url.searchParams.get("domain");
-            const register = await cloudflareApi.registerDomain(domain);
-
-            return new Response(register.toString(), {
-              status: register,
-              headers: {
-                ...CORS_HEADER_OPTIONS,
-              },
-            });
-          } else if (wildcardApiPath.startsWith("/delete")) {
-            const domainId = url.searchParams.get("id");
-            const password = url.searchParams.get("password");
-
+        if (request.method === 'DELETE') {
+          try {
+            const { id, password } = await request.json();
+            if (!id) {
+              return new Response('Domain ID is required', { status: 400 });
+            }
             if (password !== ownerPassword) {
-              return new Response("Unauthorized", {
-                status: 401,
-                headers: { ...CORS_HEADER_OPTIONS },
-              });
+                return new Response('Invalid password', { status: 401 });
             }
-
-            if (!domainId) {
-              return new Response("Domain ID is required", {
-                status: 400,
-                headers: { ...CORS_HEADER_OPTIONS },
-              });
-            }
-
-            const result = await cloudflareApi.deleteDomain(domainId);
-            return new Response(result.toString(), {
-              status: result,
-              headers: { ...CORS_HEADER_OPTIONS },
-            });
+            const status = await cfApi.deleteDomain(id);
+            return new Response(null, { status });
+          } catch (e) {
+            return new Response('Invalid JSON', { status: 400 });
           }
-        } else if (apiPath.startsWith("/accounts")) {
-            if (request.method === 'GET') {
-                const accounts = await env.ACCOUNTS_KV.get('accounts_list', { type: 'json' }) || [];
-                return new Response(JSON.stringify(accounts), {
-                    headers: { ...CORS_HEADER_OPTIONS, 'Content-Type': 'application/json' },
-                });
-            } else if (request.method === 'POST') {
-                const newAccount = await request.json();
-                if (!newAccount || !newAccount.name || !newAccount.protocol) {
-                    return new Response('Invalid account data', { status: 400 });
-                }
-                let accounts = await env.ACCOUNTS_KV.get('accounts_list', { type: 'json' }) || [];
-                const existingAccount = accounts.find(acc => acc.name === newAccount.name && acc.protocol === newAccount.protocol);
-
-                if (existingAccount) {
-                    return new Response(JSON.stringify({ uuid: existingAccount.uuid }), { status: 200 });
-                } else {
-                    newAccount.uuid = crypto.randomUUID().replace(/-/g, '');
-                    accounts.push(newAccount);
-                    await env.ACCOUNTS_KV.put('accounts_list', JSON.stringify(accounts));
-                    return new Response(JSON.stringify({ uuid: newAccount.uuid }), { status: 201 });
-                }
-            } else if (request.method === 'DELETE') {
-                const password = url.searchParams.get("password");
-                if (password !== 'xxx') {
-                    return new Response("Unauthorized", { status: 401, headers: { ...CORS_HEADER_OPTIONS } });
-                }
-
-                const indexToDelete = url.searchParams.get('index');
-                if (indexToDelete === null) {
-                    return new Response('Index parameter is required', { status: 400 });
-                }
-
-                const accountIndex = parseInt(indexToDelete);
-                if (isNaN(accountIndex)) {
-                    return new Response('Invalid index', { status: 400 });
-                }
-
-                let accounts = await env.ACCOUNTS_KV.get('accounts_list', { type: 'json' }) || [];
-                
-                if (accountIndex < 0 || accountIndex >= accounts.length) {
-                    return new Response('Index out of bounds', { status: 400 });
-                }
-
-                accounts.splice(accountIndex, 1);
-
-                await env.ACCOUNTS_KV.put('accounts_list', JSON.stringify(accounts));
-                return new Response('Account deleted', { status: 200 });
-            }
-            return new Response('Method Not Allowed', { status: 405 });
-        } else if (apiPath.startsWith("/myip")) {
-          return new Response(
-            JSON.stringify({
-              ip:
-                request.headers.get("cf-connecting-ipv6") ||
-                request.headers.get("cf-connecting-ip") ||
-                request.headers.get("x-real-ip"),
-              colo: request.headers.get("cf-ray")?.split("-")[1],
-              ...request.cf,
-            }),
-            {
-              headers: {
-                ...CORS_HEADER_OPTIONS,
-              },
-            }
-          );
-        } else if (apiPath.startsWith("/stats")) {
-          if (!isApiReady) {
-              return new Response("API not ready", { status: 500 });
-          }
-          const cloudflareApi = new CloudflareApi();
-          const stats = await cloudflareApi.getStats();
-          if (stats) {
-              return new Response(JSON.stringify(stats), {
-                  headers: { ...CORS_HEADER_OPTIONS, 'Content-Type': 'application/json' },
-              });
-          }
-          return new Response("Could not fetch stats", { status: 500 });
-        } else if (apiPath.startsWith("/countries")) {
-            await getPrxList(env.PRX_BANK_URL);
-            const countries = [...new Set(cachedPrxList.map(p => p.country))].filter(Boolean);
-            return new Response(JSON.stringify(countries.sort()), {
-                headers: { ...CORS_HEADER_OPTIONS, 'Content-Type': 'application/json' },
-            });
         }
-      } else if (url.pathname === "/kuota") {
-        const html = `
-<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Cek Kuota XL/AXIS</title>
 
-    <link rel="icon" href="https://raw.githubusercontent.com/jaka9m/vless/refs/heads/main/sidompul.jpg" type="image/jpeg">
+        return new Response('Method Not Allowed', { status: 405 });
+      }
+
+      const myurl = "geovpn.vercel.app";
+      const upgradeHeader = request.headers.get("Upgrade");
+      const CHECK_API_BASE = `https://${myurl}`;
+      const CHECK_API = `${CHECK_API_BASE}/check?ip=`;
+      
+      // Handle IP check
+      if (url.pathname === "/geo-ip") {
+        const ip = url.searchParams.get("ip");
+
+        if (!ip) {
+          return new Response("IP parameter is required", { status: 400 });
+        }
+
+        // Call external API using CHECK_API
+        const apiResponse = await fetch(`${CHECK_API}${ip}`);
+        if (!apiResponse.ok) {
+          return new Response("Failed to fetch IP information", { status: apiResponse.status });
+        }
+
+        const data = await apiResponse.json();
+        return new Response(JSON.stringify(data), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }      
+
+     const proxyState = new Map();
+
+async function updateProxies() {
+  const proxies = await getProxyList(env);
+  console.log("Proxy list updated (getProxyList called).");
+}
+
+ctx.waitUntil(
+  (async function periodicUpdate() {
+    await updateProxies();
+  })()
+);
+
+if (upgradeHeader === "websocket") {
+  const allMatch = url.pathname.match(/^\/Free-VPN-CF-Geo-Project\/ALL(\d*)$/);
+
+  if (allMatch) {
+    const indexStr = allMatch[1]; 
+    const index = indexStr ? parseInt(indexStr) - 1 : Math.floor(Math.random() * 10000);
+
+    console.log(`ALL Proxy Request. Index Requested: ${indexStr ? index + 1 : 'Random'}`);
+
+    const allProxies = await getProxyList(env);
+
+    if (allProxies.length === 0) {
+      return new Response(`No proxies available globally.`, { status: 404 });
+    }
+
+    const selectedProxy = allProxies[index % allProxies.length];
+
+    if (!selectedProxy) {
+      return new Response(`Proxy with index ${index + 1} not found in global list. Max available: ${allProxies.length}`, { status: 404 });
+    }
+
+    proxyIP = `${selectedProxy.proxyIP}:${selectedProxy.proxyPort}`;
+    console.log(`Selected ALL Proxy: ${proxyIP}`);
+    return await websockerHandler(request);
+  }
+
+  const countryMatch = url.pathname.match(/^\/Free-VPN-CF-Geo-Project\/([A-Z]{2})(\d*)$/);
+
+  if (countryMatch) {
+    const baseCountryCode = countryMatch[1];
+    const indexStr = countryMatch[2];       
+    const index = indexStr ? parseInt(indexStr) - 1 : 0;
+
+    console.log(`Base Country Code Request: ${baseCountryCode}, Index Requested: ${index + 1}`);
+
+    const allProxies = await getProxyList(env); // Pastikan ini mengambil daftar proxy terbaru
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    const filteredProxiesForCountry = allProxies.filter((proxy) => 
+      proxy.country === baseCountryCode
+    );
 
-    <script>
-    tailwind.config = {
-        darkMode: 'selector',
-        theme: {
-            extend: {
-                colors: {
-                    'accent-blue': '#66b5e8',
-                    'accent-purple': '#a466e8',
-                }
-            }
-        }
+    if (filteredProxiesForCountry.length === 0) {
+      return new Response(`No proxies available for country: ${baseCountryCode}`, { status: 404 });
+    }
+
+    const selectedProxy = filteredProxiesForCountry[index % filteredProxiesForCountry.length]; 
+    
+    if (!selectedProxy) {
+      return new Response(`Proxy with index ${index + 1} not found for country: ${baseCountryCode}. Max available: ${filteredProxiesForCountry.length}`, { status: 404 });
+    }
+
+    proxyIP = `${selectedProxy.proxyIP}:${selectedProxy.proxyPort}`;
+    console.log(`Selected Proxy: ${proxyIP} for ${baseCountryCode}${indexStr}`);
+    return await websockerHandler(request);
+  }
+
+  const ipPortMatch = url.pathname.match(/^\/Free-VPN-CF-Geo-Project\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})[=:-](\d+)$/);
+
+  if (ipPortMatch) {
+    proxyIP = `${ipPortMatch[1]}:${ipPortMatch[2]}`; // Standarisasi menjadi ip:port
+    console.log(`Direct Proxy IP: ${proxyIP}`);
+    return await websockerHandler(request, proxyIP);
+  }
+}
+
+      const geovpn = url.hostname;
+      const type = url.searchParams.get('type') || 'mix';
+      const tls = url.searchParams.get('tls') !== 'false';
+      const wildcard = url.searchParams.get('wildcard') === 'true';
+      const bugs = url.searchParams.get('bug') || geovpn;
+      const geo81 = wildcard ? `${bugs}.${geovpn}` : geovpn;
+      const country = url.searchParams.get('country');
+      const limit = parseInt(url.searchParams.get('limit'), 10); // Ambil nilai limit
+      let configs;
+
+      switch (url.pathname) {
+        case '/vpn/clash':
+          configs = await generateClashSub(type, bugs, geo81, tls, country, limit);
+          break;
+        case '/vpn/surfboard':
+          configs = await generateSurfboardSub(type, bugs, geo81, tls, country, limit);
+          break;
+        case '/vpn/singbox':
+          configs = await generateSingboxSub(type, bugs, geo81, tls, country, limit);
+          break;
+        case '/vpn/husi':
+          configs = await generateHusiSub(type, bugs, geo81, tls, country, limit);
+          break;
+        case '/vpn/nekobox':
+          configs = await generateNekoboxSub(type, bugs, geo81, tls, country, limit);
+          break;
+        case '/vpn/v2rayng':
+          configs = await generateV2rayngSub(type, bugs, geo81, tls, country, limit);
+          break;
+        case '/vpn/v2ray':
+          configs = await generateV2raySub(type, bugs, geo81, tls, country, limit);
+          break;
+        case "/web":
+          return await handleWebRequest(request);
+          break;
+        case "/":
+          return await handleWebRequest(request);
+          break;
+        case "/vpn":
+          return new Response(await handleSubRequest(url.hostname), { headers: { 'Content-Type': 'text/html' } });
+
+          break;
+case "/checker":
+  return new Response(await mamangenerateHTML(), {
+    headers: { "Content-Type": "text/html" },
+  });
+  break;
+case "/checker/check":
+  const paramss = url.searchParams;
+  return await handleCheck(paramss);
+  break;
+case "/kuota":
+    return new Response(await handleKuotaRequest(), {
+        headers: { "Content-Type": "text/html" },
+    });
+    break;
+}
+
+return new Response(configs);
+} catch (err) {
+  return new Response(`An error occurred: ${err.toString()}`, {
+    status: 500,
+  });
+}
+},
+};
+
+async function handleCheck(paramss) {
+  const ipPort = paramss.get("ip");
+
+  if (!ipPort) {
+    return new Response("Parameter 'ip' diperlukan dalam format ip:port", {
+      status: 400,
+    });
+  }
+
+  const [ip, port] = ipPort.split(":");
+  if (!ip || !port) {
+    return new Response("Format IP:PORT tidak valid", { status: 400 });
+  }
+
+  const apiUrl = `https://geovpn.vercel.app/check?ip=${ip}:${port}`;
+
+  try {
+    const apiResponse = await fetch(apiUrl);
+    
+    const result = await apiResponse.json();
+
+    const responseData = {
+      proxy: result.proxy || "Unknown",
+      ip: result.ip || "Unknown",
+      port: Number.isNaN(parseInt(port, 10)) ? "Unknown" : parseInt(port, 10),
+      delay: result.delay || "Unknown",
+      countryCode: result.countryCode || "Unknown",
+      country: result.country || "Unknown",
+      flag: result.flag || "🏳️",
+      city: result.city || "Unknown",
+      timezone: result.timezone || "Unknown",
+      latitude: result.latitude ?? null,
+      longitude: result.longitude ?? null,
+      asn: result.asn ?? null,
+      colo: result.colo || "Unknown",
+      isp: result.isp || "Unknown",
+      region: result.region || "Unknown",
+      regionName: result.regionName || "Unknown",
+      org: result.org || "Unknown",
+      clientTcpRtt: result.clientTcpRtt ?? null,
+      httpProtocol: result.httpProtocol || "Unknown",
+      tlsCipher: result.tlsCipher || "Unknown",
+      continent: result.continent || "Unknown",
+      tlsVersion: result.tlsVersion || "Unknown",
+      postalCode: result.postalCode || "Unknown",
+      regionCode: result.regionCode || "Unknown",
+      asOrganization: result.asOrganization || "Unknown",
+      status: result.status === "ACTIVE" ? "✅ Aktif" : "😭",
     };
-    
-    // Fungsi navigasiPlaceholder harus didefinisikan untuk menghindari error
-    function navigateTo(url) {
-        // Logika navigasi placeholder
-        console.log('Navigating to:', url);
-        // window.location.href = url; // Uncomment ini jika Anda ingin navigasi sesungguhnya
-    }
-    </script>
-<style>
-    /* Custom Styles for Modern/Elegant Look - Merged and Optimized */
 
-    /* BASE & CONTAINER GLASSMORPHISM (Mengambil dari blok CSS kedua) */
-    body {
-        background-image: url('https://picsum.photos/1920/1080?random=1');
-        background-size: cover;
-        background-attachment: fixed;
-        perspective: 1500px; /* Nilai yang lebih besar dari blok kedua */
-    }
+    return new Response(JSON.stringify(responseData, null, 2), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    const errorData = {
+      proxy: "Unknown",
+      ip: ip || "Unknown",
+      status: "DEAD",
+      delay: "0 ms",
+      countryCode: "Unknown",
+      country: "Unknown 🏳️",
+      flag: "🏳️",
+      city: "Unknown",
+      timezone: "Unknown",
+      latitude: "Unknown",
+      longitude: "Unknown",
+      asn: 0,
+      colo: "Unknown",
+      isp: "Unknown",
+      region: "Unknown",
+      regionName: "Unknown",
+      org: "Unknown",
+      clientTcpRtt: 0,
+      httpProtocol: "Unknown",
+      tlsCipher: "Unknown",
+      continent: "Unknown",
+      tlsVersion: "Unknown",
+      postalCode: "Unknown",
+      regionCode: "Unknown",
+      asOrganization: "Unknown",
+      message: `${ip}:${port} - ❌ DEAD`,
+    };
 
-    .main-container {
-        background: rgba(30, 41, 59, 0.4); /* Mengambil dari blok kedua (lebih transparan) */
-        backdrop-filter: blur(18px); /* Mengambil dari blok kedua (blur lebih tinggi) */
-        border-radius: 1.5rem;
-        border: 1px solid rgba(102, 181, 232, 0.4); /* Border dari blok kedua (accent-blue) */
-        box-shadow:
-            0 40px 80px rgba(0, 0, 0, 0.8),
-            0 0 30px rgba(102, 181, 232, 0.4) inset; /* Shadow dari blok kedua (lebih detail) */
-        padding: 2rem;
-        margin-bottom: 2rem;
-        transform: translateZ(50px) rotateX(0deg) rotateY(0deg); /* Transform 3D dari blok kedua */
-        transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .main-container:hover {
-        transform: translateZ(80px) rotateX(1deg) rotateY(-1deg);
-        box-shadow:
-            0 60px 100px rgba(0, 0, 0, 0.9),
-            0 0 40px rgba(102, 181, 232, 0.6) inset;
-    }
+    return new Response(JSON.stringify(errorData, null, 2), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
 
-    /* FORM CONTAINER (Mengambil dari blok CSS kedua) */
-    #formnya {
-        background-color: rgba(30, 41, 59, 0.6);
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(100, 116, 139, 0.5);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.7), inset 0 0 10px rgba(0,0,0,0.3);
-        transform: translateZ(10px);
-        transition: all 0.3s ease;
-    }
-    #formnya:hover {
-        transform: translateZ(15px);
-    }
-
-    /* INPUT GROUP (Mengambil dari blok CSS pertama, karena lebih umum) */
-    .input-group {
-        background-color: rgba(30, 41, 59, 0.6);
-        border-radius: 0.75rem;
-        padding: 1rem;
-        border: 1px solid rgba(100, 116, 139, 0.3);
-        box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
-    }
-
-    /* INPUT FIELD STYLES (Mengambil dari blok CSS kedua, lebih detail) */
-    .input-dark, .input-group textarea, .input-group select {
-        background-color: rgba(17, 24, 39, 0.7); /* Background lebih transparan */
-        color: #ffffff;
-        border: 1px solid rgba(102, 181, 232, 0.5); /* Border accent-blue */
-        border-radius: 0.5rem;
-        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 5px rgba(0, 0, 0, 0.5); /* Shadow lebih gelap */
-        transform: translateZ(2px);
-        transition: all 0.2s;
-    }
-    .input-dark:focus, .input-group textarea:focus, .input-group select:focus {
-        border-color: var(--tw-color-accent-blue);
-        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 10px var(--tw-color-accent-blue); /* Glow yang lebih kuat */
-        transform: translateZ(5px);
-    }
-
-    /* BUTTON GRADIENT (Mengambil dari blok CSS kedua, lebih fokus 3D kecil) */
-    .btn-gradient {
-        background: linear-gradient(45deg, var(--tw-color-accent-blue), var(--tw-color-accent-purple));
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-        transform: translateZ(10px);
-        transition: all 0.3s ease;
-        border: none;
-    }
-    .btn-gradient:hover:not(:disabled) {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), inset 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 15px var(--tw-color-accent-blue);
-        transform: translateZ(15px) translateY(-1px);
-    }
-
-    /* ACTION BUTTON (Mempertahankan style dari blok pertama yang unik) */
-    .action-btn {
-        background-color: #1e293b;
-        color: #94a3b8;
-        border: 1px solid #475569;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        transition: all 0.2s;
-    }
-    .action-btn:hover {
-        background-color: #334155;
-        color: white;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 1px 5px rgba(0, 0, 0, 0.6);
-        transform: translateY(1px);
-    }
-
-    /* Style untuk tombol Home (Dari blok CSS kedua) */
-    .btn-home {
-        background: linear-gradient(45deg, #4c566a, #2e3440);
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-        transform: translateZ(10px);
-        transition: all 0.3s ease;
-        border: none;
-    }
-    .btn-home:hover:not(:disabled) {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), inset 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 15px #88c0d0;
-        transform: translateZ(15px) translateY(-1px);
-    }
-
-    /* JUDUL PUTIH SOLID (Properti yang sama, cukup satu) */
-    .text-solid-white {
-        color: #ffffff;
-        text-shadow: none;
-    }
-
-    /* HEADINGS & LAYOUT */
-    .centered-heading {
-        text-align: center;
-        width: 100%;
-        font-size: 1.5rem;
-        font-weight: 800;
-        line-height: 1.2;
-        padding-bottom: 0.5rem;
-        /* Tambahan dari blok kedua */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    /* LOGO BULAT DAN BESAR (Dari blok CSS kedua) */
-    .heading-icon {
-        width: 50px;
-        height: 50px;
-        margin-right: 15px;
-        border-radius: 50%;
-        object-fit: cover;
-    }
-    .nav-btn-center {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        min-height: 50px;
-        padding: 0.75rem 1.5rem;
-        line-height: 1.2;
-        border-radius: 0.75rem;
-    }
-    .info-box {
-        background-color: rgba(30, 41, 59, 0.5);
-        backdrop-filter: blur(5px);
-        border: 1px solid rgba(100, 116, 139, 0.5);
-        box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-    }
-    footer {
-        background-color: rgba(17, 24, 39, 0.8);
-        backdrop-filter: blur(3px);
-        border-top: 1px solid rgba(100, 116, 139, 0.3);
-        transform: translateZ(0);
-    }
-
-
-    /* TABLE STYLES (Dari blok CSS pertama) */
-    .table-dark th {
-        background-color: #1e293b;
-        color: #94a3b8;
-        font-weight: 600;
-    }
-    .table-dark td {
-        border-color: #334155;
-    }
-    .table-dark tr:nth-child(even) {
-        background-color: #111827;
-    }
-    .table-dark tr:hover {
-        background-color: #334155 !important;
-    }
-
-    /* RESULT STYLES */
-    /* RESULT CARD BARU (Dari blok CSS kedua, lebih lengkap) */
-    .result-card {
-        background: rgba(45, 62, 80, 0.6);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(102, 181, 232, 0.5);
-        border-radius: 1rem;
-        padding: 1.5rem;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(102, 181, 232, 0.2);
-        transform: translateZ(10px);
-        text-align: left;
-        margin-top: 1.5rem;
-        color: white;
-    }
-    .result-card h4 {
-        color: var(--tw-color-accent-blue);
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        border-bottom: 1px solid rgba(100, 116, 139, 0.5);
-        padding-bottom: 0.5rem;
-    }
-    .result-item {
-        padding: 0.4rem 0;
-        border-bottom: 1px dashed rgba(100, 116, 139, 0.3);
-        overflow: hidden;
-    }
-    .result-item:last-child {
-        border-bottom: none;
-    }
-
-    /* RESULT SUCCESS/ERROR (Dari blok CSS pertama, tetap berguna) */
-    .result-success {
-        background-color: #1f2937;
-        border: 1px solid #66b5e8;
-        color: #ffffff;
-        box-shadow: 0 0 15px rgba(102, 181, 232, 0.4);
-        transition: all 0.3s ease;
-    }
-    .result-error {
-        background-color: #1f2937;
-        border: 1px solid #a466e8;
-        color: #ffffff;
-        box-shadow: 0 0 15px rgba(164, 102, 232, 0.4);
-        transition: all 0.3s ease;
-    }
-
-    /* LOADING SPINNER (Properti yang sama, cukup satu) */
-    #cover-spin {
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0,0,0,0.8);
-        z-index: 9999;
-        display: none;
-    }
-    .loader {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        border: 6px solid #f3f3f3;
-        border-top: 6px solid var(--tw-color-accent-blue);
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        animation: spin 2s linear infinite;
-    }
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-</style>
-    </head>
-<body class="text-white min-h-screen flex flex-col items-center">
-    <div id="cover-spin"><div class="loader"></div></div>
-    <div id="custom-notification"></div> 
-    
-    <div id="main-content-container" class="flex flex-col items-center p-3 sm:p-8 flex-grow w-full max-w-7xl">
-    <div id="slide-2" class="slide w-full max-w-4xl main-container p-4 sm:p-6">
-    
-    <div class="flex justify-center mb-6">
-        <div class="grid grid-cols-3 gap-3 sm:gap-4 max-w-lg w-full">
-            <a href="/sub"
-                    class="flex flex-col items-center justify-center p-2 rounded-lg text-xs sm:text-sm text-white font-semibold action-btn hover:opacity-90 transition-opacity duration-300 shadow-sm">
-                <i class="fas fa-home text-lg mb-1"></i>
-                <span>Home</span>
-            </a>
-    
-            <a href="/convert"
-                    class="flex flex-col items-center justify-center p-2 rounded-lg text-xs sm:text-sm text-white font-semibold action-btn hover:opacity-90 transition-opacity duration-300 shadow-sm">
-                <i class="fas fa-exchange-alt text-lg mb-1"></i>
-                <span>Converter</span>
-            </a>
-    
-            <a href="/kuota"
-                    class="flex flex-col items-center justify-center p-2 rounded-lg text-xs sm:text-sm text-white font-bold btn-gradient transition-all duration-300 shadow-xl opacity-100 scale-105">
-                <i class="fas fa-signal text-lg mb-1"></i>
-                <span>Cek Kuota</span>
-            </a>
-        </div>
-    </div>
-    <div class="w-full max-w-lg mx-auto main-container">
-            <div class="text-center mb-6">
-                <h2 class="text-solid-white centered-heading">
-                    <img src="https://raw.githubusercontent.com/jaka9m/vless/refs/heads/main/sidompul.jpg" alt="Logo Sidompul" class="heading-icon">
-                    Sidompul Cek Kuota XL/AXIS
-                </h2>
-            </div>
-            
-            <div class="p-4 rounded-lg mb-6 text-center text-gray-400 border info-box" style="box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.2);">
-                <i class="fa fa-info-circle text-accent-blue mr-1"></i> Gunakan layanan ini secara bijak dan hindari spam.
-            </div>
-            
-            <form id="formnya" class="p-6 rounded-xl shadow-xl border">
-                <div class="mb-6">
-                    <label for="msisdn" class="block font-medium mb-2 text-gray-300 text-sm">Nomor HP XL/AXIS:</label>
-                    <input type="number" class="w-full px-4 py-3 rounded-lg input-dark text-base focus:ring-2 focus:ring-accent-blue" id="msisdn" placeholder="08xxx / 628xxx" maxlength="16" required>
-                </div>
-                
-                <div class="flex gap-4">
-                    
-                    <button type="button" id="submitCekKuota" class="flex-1 py-1 rounded-lg text-white font-bold text-base btn-gradient hover:opacity-90 transition-opacity">
-                        <i class="fa fa-search mr-2"></i>Cek
-                    </button>
-                </div>
-            </form>
-
-            <div id="hasilnya" class="mt-6"></div>
-        </div>
-    
-  </div>
-
-    <footer class="w-full p-4 text-center mt-auto border-t">
-        <div class="flex items-center justify-center gap-2 text-sm font-medium text-gray-500">
-            <span>Sumbawa Support</span>
-            <a href="https://t.me/sampiiiiu" target="_blank" class="flex items-center gap-1 text-accent-blue hover:text-accent-purple transition-colors duration-200">
-                <i class="fab fa-telegram"></i>
-                <span>GEO PROJECT</span>
-            </a>
-        </div>
-    </footer>
-
-      <script>
-        
-        function cekKuota() {
-            const msisdn = document.getElementById('msisdn').value;
-            if (!msisdn) {
-                console.error('Nomor tidak boleh kosong.');
-                return;
-            }
-            
-            $('#cover-spin').show();
-            $.ajax({
-                type: 'GET',
-                url: 'https://apigw.kmsp-store.com/sidompul/v4/cek_kuota?msisdn=' + msisdn + '&isJSON=true',
-                dataType: 'JSON',
-                contentType: 'application/x-www-form-urlencoded',
-                beforeSend: function (req) {
-                    req.setRequestHeader('Authorization', 'Basic c2lkb21wdWxhcGk6YXBpZ3drbXNw');
-                    req.setRequestHeader('X-API-Key', '60ef29aa-a648-4668-90ae-20951ef90c55');
-                    req.setRequestHeader('X-App-Version', '4.0.0');
-                },
-                success: function (res) {
-                    $('#cover-spin').hide();
-                    $('#hasilnya').html('');
-                    if (res.status) {
-                        $('#hasilnya').html('<div class="result-success p-4 rounded-lg mt-4 text-center font-semibold">' + res.data.hasil + '</div>');
-                    } else {
-                        console.error('Gagal Cek Kuota: ' + res.message);
-                        $('#hasilnya').html('<div class="result-error p-4 rounded-lg mt-4 text-center font-semibold">' + res.data.keteranganError + '</div>');
-                    }
-                },
-                error: function () {
-                    $('#cover-spin').hide();
-                    console.error('Terjadi kesalahan koneksi.');
-                    $('#hasilnya').html(\`<div class="result-error p-4 rounded-lg mt-4 text-center font-semibold">Terjadi kesalahan koneksi atau server tidak merespons.</div>\`);
-                }
-            });
-        }
-        
-        // Pemasangan event listener setelah konten dimuat
-        $(document).ready(function() {
-            $('#submitCekKuota').off('click').on('click', cekKuota); 
-            $('#msisdn').off('keypress').on('keypress', function (e) {
-                if (e.which === 13) cekKuota();
-            });
-        });
-        
-      </script>
-    </body>
-    </html>
-        `;
-        return new Response(html, {
-            status: 200,
-            headers: { 'Content-Type': 'text/html;charset=utf-8' },
-        });
-      } else if (url.pathname.startsWith("/linksub")) {
-        const linksubHTML = `
+function mamangenerateHTML() {
+  return `
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="id" class="">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subscription Link Generator</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proxy Checker</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script>
+        // On page load or when changing themes, best to add inline in head to avoid FOUC
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
+  <style>
+  
+          :root {
+        --primary: #00ff88;
+        --secondary: #00ffff;
+        --accent: #ff00ff;
+        --dark: #080c14;
+        --darker: #040608;
+        --light: #e0ffff;
+        --card-bg: rgba(8, 12, 20, 0.95);
+        --glow: 0 0 20px rgba(0, 255, 136, 0.3);
+      }
+      
+      @keyframes rainbow {
+      0% { color: red; }
+      14% { color: black; }
+      28% { color: black; }
+      42% { color: green; }
+      57% { color: blue; }
+      71% { color: indigo; }
+      85% { color: violet; }
+      100% { color: red; }
+    }
+    @keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Space Grotesk', sans-serif;
+      }
+
+      body {
+      	
+      font-family: monospace;
+    background: black;
+    color: #0f0;
+    text-align: center;
+    background-size: cover;
+        justify-content: center;
+        align-items: center;
+  animation: rainbowBackground 10s infinite; /* Animasi bergerak */
+}
+
+
+     h1 {
+      font-family: 'Rajdhani', sans-serif;
+      padding-top: 10px; /* To avoid content being hidden under the header */
+      margin-top: 10px;
+      color: black;
+            text-align: center;
+            font-size: 9vw;
+            font-weight: bold;
+            text-shadow: 
+                0 0 5px rgba(0, 123, 255, 0.8),
+                0 0 10px rgba(0, 123, 255, 0.8),
+                0 0 20px rgba(0, 123, 255, 0.8),
+                0 0 30px rgba(0, 123, 255, 0.8),
+                0 0 40px rgba(0, 123, 255, 0.8);
     
-    <style>
-        root {
-            --color-primary: #00d4ff;
-            --color-secondary: #00bfff;
-            --color-background: #020d1a;
-            --color-card: rgba(0, 212, 255, 0.1);
-            --color-text: #e0f4f4;
-            --transition: all 0.3s ease;
-        }
+         background: linear-gradient(45deg, var(--primary), var(--secondary), var(--dark));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 30px #000;
+        position: relative;
+        animation: titlePulse 3s ease-in-out infinite;
+    }
 
-        body {
-            display: flex;
-            background: url('https://raw.githubusercontent.com/bitzblack/ip/refs/heads/main/shubham-dhage-5LQ_h5cXB6U-unsplash.jpg') no-repeat center center fixed;
-            background-size: cover;
-            justify-content: center;
-            align-items: flex-start;
-            color: var(--color-text);
-            min-height: 100vh;
-            font-family: 'Arial', sans-serif;
-            overflow-y: auto;
-        }
+      @keyframes titlePulse {
+        0%, 100% { transform: scale(1); filter: brightness(1); }
+        50% { transform: scale(1.02); filter: brightness(1.2); }
+      }
+    
+    h2 {
+      color: black;
+            text-align: center;
+            font-size: 4vw;
+            font-weight: bold;
+            text-shadow: 
+                0 0 5px rgba(0, 123, 255, 0.8),
+                0 0 10px rgba(0, 123, 255, 0.8),
+                0 0 20px rgba(0, 123, 255, 0.8),
+                0 0 30px rgba(0, 123, 255, 0.8),
+                0 0 40px rgba(0, 123, 255, 0.8);
+    }
+    header,  footer {
+      box-sizing: border-box; /* Pastikan padding dihitung dalam lebar elemen */
+      background-color: ;
+      color: white;
+      text-align: center;
+      border: 0px solid rgba(143, 0, 0, 0.89); /* Border dengan warna abu-abu */
+      border-radius: 10px;
+      padding: 0 20px;
+      position: fixed;
+      width: 100%;
+      left: 0;
+      right: 2px;
+      pointer-events: none;
+      z-index: 10;
+    }
 
-        .blur-background {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: -1;
-            perspective: 1000px;
-        }
+    header {
+      top: 0;
+    }
 
-        .blur-background::before {
-            content: '';
-            position: absolute;
-            top: 5%;
-            left: 10%;
-            width: 450px;
-            height: 450px;
-            background: rgba(168, 85, 247, 0.5);
-            border-radius: 50%;
-            filter: blur(200px);
-            opacity: 0.8;
-            transform: translateZ(-300px);
-        }
+    footer {
+      bottom: 0;
+    }
+    
+      .swal-popup-extra-small-text {
+    font-size: 12px; /* Ukuran font untuk seluruh pop-up */
+}
 
-        .blur-background::after {
-            content: '';
-            position: absolute;
-            bottom: 10%;
-            right: 15%;
-            width: 550px;
-            height: 550px;
-            background: rgba(59, 130, 246, 0.45);
-            border-radius: 50%;
-            filter: blur(220px);
-            opacity: 0.7;
-            transform: translateZ(-400px);
-        }
+.swal-title-extra-small-text {
+    font-size: 12px; /* Ukuran font untuk judul */
+    font-weight: bold;
+}
 
-        .container {
-            width: 100%;
-            max-width: 500px;
-            padding: 2rem;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
+.swal-content-extra-small-text {
+    font-size: 12px; /* Ukuran font untuk teks konten */
+}
 
-        .main-title {
-            color: #ffffff;
-            text-shadow: 0 0 5px #a855f7, 0 0 10px rgba(168, 85, 247, 0.5);
-            letter-spacing: 1px;
-        }
 
-        .form-input, .form-select {
-            background-color: #1a2035;
-            border: 1px solid #374151;
-            color: #f8fafc;
-            box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(255, 255, 255, 0.05);
-            transition: all 0.2s;
-        }
-        .form-input:focus, .form-select:focus {
-            outline: none;
-            border-color: #6366f1;
-            box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.5), 0 0 0 3px rgba(99, 102, 241, 0.5);
-        }
 
-        .btn-generate {
-            background-image: linear-gradient(90deg, #a855f7, #3b82f6);
-            background-size: 200% 100%;
-            transition: all 0.4s ease-in-out;
-            box-shadow: 0 15px 30px rgba(139, 92, 246, 0.4);
-            transform: translateY(0);
-        }
-        .btn-generate:hover {
-            background-position: right center;
-            box-shadow: 0 20px 40px rgba(139, 92, 246, 0.6);
-            transform: translateY(-5px);
-        }
-        .btn-generate:active {
-            transform: translateY(0);
-            box-shadow: 0 5px 10px rgba(139, 92, 246, 0.3);
-        }
+    .rainbow-text {
+      font-size: 15px;
+      font-weight: bold;
+      animation: rainbow 2s infinite;
+    }
 
-        .result-box {
-            background-color: #1e293b;
-            border: 1px solid #374151;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
-            color: #c0c0c0;
-        }
 
-        .card {
-            background: var(--color-card);
-            border-radius: 16px;
-            padding: 2rem;
-            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            transition: var(--transition);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.05);
-            transform: perspective(1500px) rotateX(3deg) rotateY(-1deg) translateZ(10px);
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
+      /* Reset dasar */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+    /* Animasi Loading */
 
-        .card:hover {
-            box-shadow: 0 20px 60px rgba(0, 212, 255, 0.3);
-        }
-    </style>
-    <style>
-.navbarconten {
+
+.loading-text {
+    font-size: 18px;
+    color: #FF5722; /* Warna untuk teks 'Loading...' */
+    margin-left: 10px;
+    font-weight: bold; /* Menambahkan ketebalan pada teks */
+}
+    
+
+        #loading { display: none; font-size: 18px; font-weight: bold; }
+    
+    @keyframes moveColors {
+  100% {
+    background-position: -200%; /* Mulai dari luar kiri */
+  }
+  0% {
+    background-position: 200%; /* Bergerak ke kanan */
+  }
+}
+
+  #loading {
+  display: none; font-size: 20px; font-weight: bold;
+  
+  background: linear-gradient(90deg, red, orange, yellow, green, blue, purple);
+  background-size: 200%;
+  color: transparent;
+  -webkit-background-clip: text;
+  animation: moveColors 5s linear infinite;
+}
+  
+  
+    .container {
+    width: 90%;
+    max-width: 600px;
+    margin: 50px auto;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 15px #0f0;
+}
+
+/* Responsif untuk layar kecil */
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+        margin: 20px auto;
+        padding: 15px;
+        box-shadow: 0 0 10px #0f0;
+    }
+}
+
+/* Tampilan lebih lebar di laptop */
+@media (min-width: 1024px) {
+    .container {
+        width: 98%; /* Hampir penuh */
+        max-width: 1600px; /* Menyesuaikan dengan layar besar */
+        padding: 40px;
+        box-shadow: 0 0 25px #0f0;
+    }
+}
+
+
+       .navbarconten {
     width: 100%;
     overflow-x: auto; /* Mengaktifkan scroll horizontal */
     margin-bottom: 0px;
@@ -1197,7 +1048,7 @@ export default {
     }
       .navbar {
             position: fixed;
-            top: 60%;
+            top: 50%;
             left: -80px; /* Awalnya disembunyikan */
             transform: translateY(-50%);
             width: 80px;
@@ -1235,7 +1086,7 @@ export default {
         /* Tombol Toggle */
         .toggle-btn {
             position: absolute;
-            top: 60%;
+            top: 50%;
             right: -30px; /* Posisi tombol di tengah kanan navbar */
             transform: translateY(-50%);
             background: ;
@@ -1257,344 +1108,2512 @@ export default {
             right: -29px;
         }
         
+        @keyframes blink {
+    0% { opacity: 1; }
+    100% { opacity: 0.3; }
+  }
+  .input-container {
+            margin-bottom: 20px;
+        }
+        .input-container input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            text-align: center;
+        }
+        
+        #map {
+  height: 350px;
+  width: 100%;
+  margin-top: 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+          
+
+  /* Reset dasar */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+
+  /* Canvas Matrix */
+  canvas, #matrix {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+  }
+
+  h2 {
+    margin-bottom: 15px;
+  }
+
+  /* Input dan tombol */
+  input, button {
+    width: 100%;
+    padding: 12px;
+    margin: 6px 0;
+    font-size: 16px;
+    border-radius: 5px;
+    border: none;
+  }
+
+  input {
+    background: #2d3748;
+    color: #00FF00;
+  }
+
+  button {
+    background: #0f0;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  button:hover:enabled {
+    background: #0d0;
+  }
+
+  button:disabled {
+    background: #555;
+    cursor: not-allowed;
+  }
+
+  
+  /* Tabel */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  th, td {
+    padding: 12px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    text-align: left;
+  }
+
+  th {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  
+  
+  /* Efek fade-in */
+  .fade-in {
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+  }
+
+  .fade-in.show {
+    opacity: 1;
+  }
+
+  /* Efek teks ala hacker */
+  .matrix-alert {
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 0 5px #00FF00, 0 0 10px #00FF00;
+  }
+
+  
+</style>
+</head>
+${SIDEBAR_COMPONENT}
+<body>
+<header>
+  <h1>Proxy Checker</h1>
+</header>
+<br>
+
+<div class="container">
+    <div class="input-container">
+            <input type="text" id="ipInput" placeholder="Input IP:Port (192.168.1.1:443)">
+        </div>
+        <button class="copy-btn" onclick="checkProxy()">Check</button>
+
+    <p id="loading" style="display: none; text-align: center;">Loading...</p>
+    <table id="resultTable">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <br>
+      <tbody>
+        <tr><td>Proxy</td><td>-</td></tr>
+        <tr><td>ISP</td><td>-</td></tr>
+        <tr><td>IP</td><td>-</td></tr>
+        <tr><td>Port</td><td>-</td></tr>
+        <tr><td>ASN</td><td>-</td></tr>
+        <tr><td>Country</td><td>-</td></tr>
+        <tr><td>City</td><td>-</td></tr>
+        <tr><td>Flag</td><td>-</td></tr>
+        <tr><td>Timezone</td><td>-</td></tr>
+        <tr><td>Latitude</td><td>-</td></tr>
+        <tr><td>Longitude</td><td>-</td></tr>
+        <tr><td>Delay</td><td style="color: cyan; font-weight: bold;">-</td></tr>
+        <tr><td>Status</td><td style="font-weight: bold;">-</td></tr>
+      </tbody>
+    </table>
+
+    <div id="map"></div>
+  </div>
+
+  <footer>
+  <h2>&copy; 2025 Proxy Checker. All rights reserved.</h2>
+</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<script>
+    let map;
+
+    window.onload = function () {
+        loadStoredData();
+        initializeMap();
+    };
+
+    function loadStoredData() {
+        const storedData = localStorage.getItem("proxyData");
+        if (storedData) {
+            updateTable(JSON.parse(storedData));
+        }
+    }
+
+    function initializeMap() {
+        const storedMap = localStorage.getItem("mapData");
+
+        if (storedMap) {
+            const mapData = JSON.parse(storedMap);
+            initMap(mapData.latitude, mapData.longitude, mapData.zoom);
+            loadStoredMarker();
+        } else {
+            initMap(-6.200000, 106.816666, 5);
+        }
+    }
+
+    function loadStoredMarker() {
+        const storedMarker = localStorage.getItem("markerData");
+        if (storedMarker) {
+            const markerData = JSON.parse(storedMarker);
+            addMarkerToMap(markerData.latitude, markerData.longitude, markerData.data);
+        }
+    }
+
+    async function checkProxy() {
+        const ipPort = document.getElementById("ipInput").value.trim();
+
+        if (!ipPort) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Peringatan!',
+                text: 'Masukkan IP:Port terlebih dahulu!',
+                confirmButtonText: 'OK',
+                background: '#000',
+                color: '#00FF00',
+                iconColor: '#00FF00',
+                confirmButtonColor: '#4CAF50'
+            });
+            return;
+        }
+
+        document.getElementById("loading").style.display = "block";
+
+        try {
+            const response = await fetch("/checker/check?ip=" + encodeURIComponent(ipPort));
+            const data = await response.json();
+
+            localStorage.setItem("proxyData", JSON.stringify(data));
+            updateTable(data);
+            if (data.latitude && data.longitude) updateMap(data.latitude, data.longitude, data);
+        } catch (error) {
+            console.error("Error fetching proxy data:", error);
+        } finally {
+            document.getElementById("loading").style.display = "none";
+        }
+    }
+
+    function updateTable(data) {
+        const tbody = document.getElementById("resultTable").querySelector("tbody");
+
+        tbody.querySelectorAll("tr").forEach(function (row) {
+            const key = row.querySelector("td").textContent.toLowerCase();
+            row.querySelectorAll("td")[1].textContent = data[key] || "-";
+        });
+    }
+
+    function initMap(lat, lon, zoom) {
+    map = L.map('map').setView([lat, lon], zoom);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">Geo Project</a> IP CF Checker'
+    }).addTo(map);
+}
+
+function updateMap(lat, lon, data) {
+    if (!map) {
+        initMap(lat, lon, 7);
+    } else {
+        map.setView([lat, lon], 7);
+        
+        // Hapus semua marker sebelum menambahkan yang baru
+        map.eachLayer(function (layer) {
+            if (layer instanceof L.Marker) map.removeLayer(layer);
+        });
+    }
+
+    addMarkerToMap(lat, lon, data);
+    saveMapData(lat, lon, 7, data.proxy, data.isp, data.asn);
+}
+
+function saveMapData(lat, lon, zoom, proxy = null, isp = null, asn = null) {
+    localStorage.setItem("mapData", JSON.stringify({ 
+        latitude: lat, 
+        longitude: lon, 
+        zoom: zoom 
+    }));
+
+    const markerData = { latitude: lat, longitude: lon };
+    if (proxy || isp || asn) {
+        markerData.data = { proxy, isp, asn };
+    }
+
+    localStorage.setItem("markerData", JSON.stringify(markerData));
+}
+
+function addMarkerToMap(lat, lon, data) {
+    var icon1 = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/252/252025.png',
+        iconSize: [35, 35],
+        iconAnchor: [15, 35],
+        popupAnchor: [0, -30]
+    });
+
+    var marker = L.marker([lat, lon], { icon: icon1 }).addTo(map)
+        .bindPopup("<b>📍 Lokasi</b><br>" +
+            "<b>Proxy:</b> " + (data.proxy || '-') + "<br>" +
+            "<b>ISP:</b> " + (data.isp || '-') + "<br>" +
+            "<b>ASN:</b> " + (data.asn || '-') + "<br>" +
+            "<b>Latitude:</b> " + lat + "<br>" +
+            "<b>Longitude:</b> " + lon)
+        .openPopup();
+}
+
+</script>
+</body>
+</html>
+
+
+`;
+}
+
+async function handleKuotaRequest() {
+    return `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Cek Kuota</title>
+            <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gray-100 dark:bg-gray-900">
+            ${SIDEBAR_COMPONENT}
+            <div class="flex items-center justify-center h-screen">
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Halaman Cek Kuota</h1>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+// Helper function: Group proxies by country
+function groupBy(array, key) {
+  return array.reduce((result, currentValue) => {
+    (result[currentValue[key]] = result[currentValue[key]] || []).push(currentValue);
+    return result;
+  }, {});
+}
+
+async function handleSubRequest(hostnem) {
+  const html = `
+<html>
+      <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+      <title>Geo-VPN | VPN Tunnel | CloudFlare</title>
+      
+      <!-- SEO Meta Tags -->
+      <meta name="description" content="Akun Vless Gratis. Geo-VPN offers free Vless accounts with Cloudflare and Trojan support. Secure and fast VPN tunnel services.">
+      <meta name="keywords" content="Geo-VPN, Free Vless, Vless CF, Trojan CF, Cloudflare, VPN Tunnel, Akun Vless Gratis">
+      <meta name="author" content="Geo-VPN">
+      <meta name="robots" content="index, follow"> 
+      <meta name="robots" content="noarchive"> 
+      <meta name="robots" content="max-snippet:-1, max-image-preview:large, max-video-preview:-1"> 
+      
+      <!-- Social Media Meta Tags -->
+      <meta property="og:title" content="Geo-VPN | Free Vless & Trojan Accounts">
+      <meta property="og:description" content="Geo-VPN provides free Vless accounts and VPN tunnels via Cloudflare. Secure, fast, and easy setup.">
+      <meta property="og:image" content="https://geoproject.biz.id/circle-flags/bote.png">
+      <meta property="og:url" content="https://geoproject.biz.id/circle-flags/bote.png">
+      <meta property="og:type" content="website">
+      <meta property="og:site_name" content="Geo-VPN">
+      <meta property="og:locale" content="en_US">
+      
+      <!-- Twitter Card Meta Tags -->
+      <meta name="twitter:card" content="summary_large_image">
+      <meta name="twitter:title" content="Geo-VPN | Free Vless & Trojan Accounts">
+      <meta name="twitter:description" content="Get free Vless accounts and fast VPN services via Cloudflare with Geo-VPN. Privacy and security guaranteed.">
+      <meta name="twitter:image" content="https://geoproject.biz.id/circle-flags/bote.png"> 
+      <meta name="twitter:site" content="@sampiiiiu">
+      <meta name="twitter:creator" content="@sampiiiiu">
+      <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icon-css/css/flag-icon.min.css">
+      <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.1/css/all.css">
+      
+      <!-- Telegram Meta Tags -->
+      <meta property="og:image:type" content="image/jpeg"> 
+      <meta property="og:image:secure_url" content="https://geoproject.biz.id/circle-flags/bote.png">
+      <meta property="og:audio" content="URL-to-audio-if-any"> 
+      <meta property="og:video" content="URL-to-video-if-any"> 
+      
+      <!-- Additional Meta Tags -->
+      <meta name="theme-color" content="#000000"> 
+      <meta name="format-detection" content="telephone=no"> 
+      <meta name="generator" content="Geo-VPN">
+      <meta name="google-site-verification" content="google-site-verification-code">
+      
+     <!-- Open Graph Tags for Rich Links -->
+      <meta property="og:image:width" content="1200">
+      <meta property="og:image:height" content="630">
+      <meta property="og:image:alt" content="Geo-VPN Image Preview">
+      
+      <!-- Favicon and Icon links -->
+      <link rel="icon" href="https://geoproject.biz.id/circle-flags/bote.png">
+      <link rel="apple-touch-icon" href="https://geoproject.biz.id/circle-flags/bote.png">
+      <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // On page load or when changing themes, best to add inline in head to avoid FOUC
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
+      
+    <style>
+    :root {
+        --color-primary: #00d4ff; /* Biru neon */
+        --color-secondary: #00bfff; /* Biru lebih terang */
+        --color-background: #020d1a; /* Latar belakang lebih gelap */
+        --color-card: rgba(0, 212, 255, 0.1); /* Kartu dengan sedikit transparansi */
+        --color-text: #e0f4f4; /* Tetap dengan teks cerah */
+        --transition: all 0.3s ease;
+    }
+
+    .dark body {
+        background: var(--color-background);
+    }
+
+    .dark .card {
+        background: var(--color-card);
+        border-color: var(--color-primary);
+    }
+    
+    .dark .form-control {
+        background: rgba(0, 212, 255, 0.05);
+        border-color: rgba(0, 212, 255, 0.3);
+        color: var(--color-text);
+    }
+
+    .dark .title {
+        color: var(--color-primary);
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        outline: none;
+    }
+
+    body {
+        display: flex;
+        background: url('https://raw.githubusercontent.com/bitzblack/ip/refs/heads/main/shubham-dhage-5LQ_h5cXB6U-unsplash.jpg') no-repeat center center fixed;
+        background-size: cover;
+        justify-content: center;
+        align-items: flex-start; /* Align items to the top */
+        color: var(--color-text);
+        min-height: 100vh;
+        font-family: 'Arial', sans-serif;
+        overflow-y: auto; /* Memungkinkan scrolling */
+    }
+
+    .container {
+        width: 100%;
+        max-width: 500px;
+        padding: 2rem;
+        max-height: 90vh; /* Batasi tinggi agar tidak melebihi viewport */
+        overflow-y: auto; /* Membolehkan scroll jika konten lebih tinggi */
+    }
+
+    .card {
+        background: var(--color-card);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 212, 255, 0.1); /* Biru neon */
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 212, 255, 0.2); /* Biru neon */
+        transition: var(--transition);
+    }
+
+    .card:hover {
+        box-shadow: 0 20px 60px rgba(0, 212, 255, 0.3); /* Glow lebih kuat */
+    }
+
+    .title {
+        text-align: center;
+        color: var(--color-primary); /* Biru neon */
+        margin-bottom: 1.5rem;
+        font-size: 2rem;
+        font-weight: 700;
+        animation: titleFadeIn 1s ease-out;
+    }
+
+    @keyframes titleFadeIn {
+        0% { opacity: 0; transform: translateY(-20px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: var(--color-text);
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: rgba(0, 212, 255, 0.05); /* Biru neon */
+        border: 2px solid rgba(0, 212, 255, 0.3); /* Biru neon */
+        border-radius: 8px;
+        color: var(--color-text);
+        transition: var(--transition);
+    }
+
+    .form-control:focus {
+        border-color: var(--color-secondary); /* Biru lebih terang */
+        box-shadow: 0 0 8px 3px rgba(0, 255, 255, 0.7); /* Biru neon */
+    }
+
+    .btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--color-primary); /* Biru neon */
+        color: var(--color-background);
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 300%;
+        height: 300%;
+        background: rgba(0, 255, 255, 0.3);
+        transition: all 0.4s ease;
+        border-radius: 50%;
+        transform: translate(-50%, -50%) scale(0);
+    }
+
+    .btn:hover::after {
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    .btn:hover {
+        background: var(--color-secondary); /* Biru lebih terang */
+        box-shadow: 0 0 20px 10px rgba(0, 255, 255, 0.3); /* Glow saat hover */
+    }
+
+    .result {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: rgba(0, 212, 255, 0.1); /* Biru neon */
+        border-radius: 8px;
+        word-break: break-all;
+        opacity: 0;
+        animation: fadeIn 1s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+
+    .loading {
+        display: none;
+        text-align: center;
+        color: var(--color-primary); /* Biru neon */
+        margin-top: 1rem;
+    }
+
+    .copy-btns {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
+
+    .copy-btn {
+        background: rgba(0, 212, 255, 0.2); /* Biru neon */
+        color: var(--color-primary); /* Biru neon */
+        padding: 0.5rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: var(--transition);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .copy-btn::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 300%;
+        height: 300%;
+        background: rgba(0, 255, 255, 0.3);
+        transition: all 0.4s ease;
+        border-radius: 50%;
+        transform: translate(-50%, -50%) scale(0);
+    }
+
+    .copy-btn:hover::after {
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    .copy-btn:hover {
+        background: rgba(0, 212, 255, 0.3); /* Biru neon */
+        box-shadow: 0 0 15px 8px rgba(0, 255, 255, 0.3); /* Glow saat hover */
+    }
+
+    #error-message {
+        color: #ff4444;
+        text-align: center;
+        margin-top: 1rem;
+    }
+    
+    
 </style>
 </head>
 <body>
-    <div class="blur-background"></div>
+${SIDEBAR_COMPONENT}
     <div class="container">
-    	<div class="card">
-            <h1 class="text-4xl font-extrabold text-center mb-10 main-title">
-                <i class="fas fa-satellite-dish mr-3 text-indigo-400"></i>Subs Link
-            </h1>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div>
-                    <label for="format" class="block mb-2 text-sm font-semibold text-gray-400">Format</label>
-                    <select id="format" class="form-select p-3 rounded-lg w-full">
+        <div class="card">
+            <h1 class="title">Sub Link </h1>
+            <div class="flex justify-center mb-4">
+            </div>
+            <form id="subLinkForm">
+                <div class="form-group">
+                    <label for="app">Aplikasi</label>
+                    <select id="app" class="form-control" required>
                         <option value="v2ray">V2RAY</option>
-                        <option value="sfa">SFA</option>
-                        <option value="bfr">BFR</option>
-                        <option value="raw">RAW</option>
+                        <option value="v2rayng">V2RAYNG</option>
                         <option value="clash">CLASH</option>
+                        <option value="nekobox">NEKOBOX</option>
+                        <option value="singbox">SINGBOX</option>
+                        <option value="surfboard">SURFBOARD</option>
                     </select>
                 </div>
-                <div>
-                    <label for="vpn" class="block mb-2 text-sm font-semibold text-gray-400">VPN Protocol</label>
-                    <select id="vpn" class="form-select p-3 rounded-lg w-full">
+
+                <div class="form-group">
+                    <label for="bug">Bug</label>
+                    <input type="text" id="bug" class="form-control" placeholder="Contoh: quiz.int.vidio.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="configType">Tipe Config</label>
+                    <select id="configType" class="form-control" required>
                         <option value="vless">VLESS</option>
                         <option value="trojan">TROJAN</option>
-                        <option value="ss">SHADOWSOCKS</option>
+                        <option value="shadowsocks">SHADOWSOCKS</option>
+                        <option value="mix">ALL CONFIG</option>
                     </select>
                 </div>
-                <div>
-                    <label for="tls" class="block mb-2 text-sm font-semibold text-gray-400">TLS/Port</label>
-                    <select id="tls" class="form-select p-3 rounded-lg w-full">
-                        <option value="true">True (443) - Secure</option>
-                        <option value="false">False (80) - Regular</option>
+
+                <div class="form-group">
+                    <label for="tls">TLS</label>
+                    <select id="tls" class="form-control">
+                        <option value="true">TRUE</option>
+                        <option value="false">FALSE</option>
                     </select>
                 </div>
-                <div>
-                    <label for="wildcard" class="block mb-2 text-sm font-semibold text-gray-400">Wildcard/WC</label>
-                    <select id="wildcard" class="form-select p-3 rounded-lg w-full">
-                        <option value="false">False</option>
-                        <option value="true">True</option>
+
+                <div class="form-group">
+                    <label for="wildcard">Wildcard</label>
+                    <select id="wildcard" class="form-control">
+                        <option value="true">TRUE</option>
+                        <option value="false">FALSE</option>
                     </select>
                 </div>
-                <div class="md:col-span-2">
-                    <label for="bug" class="block mb-2 text-sm font-semibold text-gray-400">Bug Host <span class="text-xs italic text-gray-500">(e.g., ava.game.naver.com)</span></label>
-                    <input type="text" id="bug" class="form-input p-3 rounded-lg" placeholder="Masukkan Bug Host Anda...">
-                </div>
-                <div>
-                    <label for="country" class="block mb-2 text-sm font-semibold text-gray-400">Country (CC)</label>
-                    <select id="country" class="form-select p-3 rounded-lg w-full">
-                        <option value="">All Countries</option>
+
+                <div class="form-group">
+                    <label for="country">Negara</label>
+                    <select id="country" class="form-control">
+                        <option value="all">ALL COUNTRY</option>
+                        <option value="random">RANDOM</option>
+                        <option value="af">AFGHANISTAN</option>
+                        <option value="al">ALBANIA</option>
+                        <option value="dz">ALJERIA</option>
+                        <option value="ad">ANDORRA</option>
+                        <option value="ao">ANGOLA</option>
+                        <option value="ag">ANTIGUA DAN BARBUDA</option>
+                        <option value="ar">ARGENTINA</option>
+                        <option value="am">ARMENIA</option>
+                        <option value="au">AUSTRALIA</option>
+                        <option value="at">AUSTRIA</option>
+                        <option value="az">AZERBAIJAN</option>
+                        <option value="bs">BAHAMAS</option>
+                        <option value="bh">BAHRAIN</option>
+                        <option value="bd">BANGLADESH</option>
+                        <option value="bb">BARBADOS</option>
+                        <option value="by">BELARUS</option>
+                        <option value="be">BELGIUM</option>
+                        <option value="bz">BELIZE</option>
+                        <option value="bj">BENIN</option>
+                        <option value="bt">BHUTAN</option>
+                        <option value="bo">BOLIVIA</option>
+                        <option value="ba">BOSNIA DAN HERZEGOVINA</option>
+                        <option value="bw">BOTSWANA</option>
+                        <option value="br">BRAZIL</option>
+                        <option value="bn">BRUNEI</option>
+                        <option value="bg">BULGARIA</option>
+                        <option value="bf">BURKINA FASO</option>
+                        <option value="bi">BURUNDI</option>
+                        <option value="cv">CAP VERDE</option>
+                        <option value="kh">KAMBODJA</option>
+                        <option value="cm">KAMERUN</option>
+                        <option value="ca">KANADA</option>
+                        <option value="cf">REPUBLIK AFRIKA TENGAH</option>
+                        <option value="td">TADJIKISTAN</option>
+                        <option value="cl">CHILE</option>
+                        <option value="cn">CINA</option>
+                        <option value="co">KOLOMBIA</option>
+                        <option value="km">KOMOR</option>
+                        <option value="cg">KONGO</option>
+                        <option value="cd">KONGO (REPUBLIK DEMOKRATIS)</option>
+                        <option value="cr">KOSTA RIKA</option>
+                        <option value="hr">KROASIA</option>
+                        <option value="cu">CUBA</option>
+                        <option value="cy">SIPRUS</option>
+                        <option value="cz">CZECHIA</option>
+                        <option value="dk">DENMARK</option>
+                        <option value="dj">DJIBOUTI</option>
+                        <option value="dm">DOMINIKA</option>
+                        <option value="do">REPUBLIK DOMINIKA</option>
+                        <option value="ec">EKUADOR</option>
+                        <option value="eg">MESIR</option>
+                        <option value="sv">EL SALVADOR</option>
+                        <option value="gn">GUINEA</option>
+                        <option value="gq">GUINEA KULTURAL</option>
+                        <option value="gw">GUINEA-BISSAU</option>
+                        <option value="gy">GUYANA</option>
+                        <option value="ht">HAITI</option>
+                        <option value="hn">HONDURAS</option>
+                        <option value="hu">HUNGARIA</option>
+                        <option value="is">ISLANDIA</option>
+                        <option value="in">INDIA</option>
+                        <option value="id">INDONESIA</option>
+                        <option value="ir">IRAN</option>
+                        <option value="iq">IRAK</option>
+                        <option value="ie">IRLANDIA</option>
+                        <option value="il">ISRAEL</option>
+                        <option value="it">ITALIA</option>
+                        <option value="jm">JAMAIKA</option>
+                        <option value="jp">JEPANG</option>
+                        <option value="jo">YORDANIA</option>
+                        <option value="kz">KAZAKHSTAN</option>
+                        <option value="ke">KENYA</option>
+                        <option value="ki">KIRIBATI</option>
+                        <option value="kp">KOREA UTARA</option>
+                        <option value="kr">KOREA SELATAN</option>
+                        <option value="kw">KUWAIT</option>
+                        <option value="kg">KYRGYZSTAN</option>
+                        <option value="la">LAOS</option>
+                        <option value="lv">LATVIA</option>
+                        <option value="lb">LEBANON</option>
+                        <option value="ls">LESOTHO</option>
+                        <option value="lr">LIBERIA</option>
+                        <option value="ly">LIBIYA</option>
+                        <option value="li">LIECHTENSTEIN</option>
+                        <option value="lt">LITUANIA</option>
+                        <option value="lu">LUKSEMBURG</option>
+                        <option value="mk">MAKEDONIA</option>
+                        <option value="mg">MADAGASKAR</option>
+                        <option value="mw">MALAWI</option>
+                        <option value="my">MALAYSIA</option>
+                        <option value="mv">MALDIVES</option>
+                        <option value="ml">MALI</option>
+                        <option value="mt">MALTA</option>
+                        <option value="mh">MARSHAL ISLANDS</option>
+                        <option value="mr">MAURITANIA</option>
+                        <option value="mu">MAURITIUS</option>
+                        <option value="mx">MEKSIKO</option>
+                        <option value="fm">MICRONESIA</option>
+                        <option value="md">MOLDOVA</option>
+                        <option value="mc">MONACO</option>
+                        <option value="mn">MONGOLIA</option>
+                        <option value="me">MONTENEGRO</option>
+                        <option value="ma">MAROKO</option>
+                        <option value="mz">MOZAMBIQUE</option>
+                        <option value="mm">MYANMAR</option>
+                        <option value="na">NAMIBIA</option>
+                        <option value="np">NEPAL</option>
+                        <option value="nl">BELANDA</option>
+                        <option value="nz">SELANDIA BARU</option>
+                        <option value="ni">NICARAGUA</option>
+                        <option value="ne">NIGER</option>
+                        <option value="ng">NIGERIA</option>
+                        <option value="no">NORWEGIA</option>
+                        <option value="om">OMAN</option>
+                        <option value="pk">PAKISTAN</option>
+                        <option value="pw">PALAU</option>
+                        <option value="pa">PANAMA</option>
+                        <option value="pg">PAPUA NGUNI</option>
+                        <option value="py">PARAGUAY</option>
+                        <option value="pe">PERU</option>
+                        <option value="ph">FILIPINA</option>
+                        <option value="pl">POLAND</option>
+                        <option value="pt">PORTUGAL</option>
+                        <option value="qa">QATAR</option>
+                        <option value="ro">ROMANIA</option>
+                        <option value="ru">RUSIA</option>
+                        <option value="rw">RWANDA</option>
+                        <option value="kn">SAINT KITTS DAN NEVIS</option>
+                        <option value="lc">SAINT LUCIA</option>
+                        <option value="vc">SAINT VINCENT DAN GRENADINES</option>
+                        <option value="ws">SAMOA</option>
+                        <option value="sm">SAN MARINO</option>
+                        <option value="st">SAO TOME DAN PRINCIPE</option>
+                        <option value="sa">ARAB SAUDI</option>
+                        <option value="sn">SENEGAL</option>
+                        <option value="rs">SERBIA</option>
+                        <option value="sc">SEYCHELLES</option>
+                        <option value="sl">SIERRA LEONE</option>
+                        <option value="sg">SINGAPURA</option>
+                        <option value="sk">SLOVAKIA</option>
+                        <option value="si">SLOVENIA</option>
+                        <option value="so">SOMALIA</option>
+                        <option value="za">AFRIKA SELATAN</option>
+                        <option value="es">SPANYOL</option>
+                        <option value="lk">SRI LANKA</option>
+                        <option value="sd">SUDAN</option>
+                        <option value="sr">SURINAME</option>
+                        <option value="se">SWEDIA</option>
+                        <option value="ch">SWISS</option>
+                        <option value="sy">SYRIA</option>
+                        <option value="tw">TAIWAN</option>
+                        <option value="tj">TAJIKISTAN</option>
+                        <option value="tz">TANZANIA</option>
+                        <option value="th">THAILAND</option>
+                        <option value="tg">TOGO</option>
+                        <option value="tk">TOKELAU</option>
+                        <option value="to">TONGA</option>
+                        <option value="tt">TRINIDAD DAN TOBAGO</option>
+                        <option value="tn">TUNISIA</option>
+                        <option value="tr">TURKI</option>
+                        <option value="tm">TURKMENISTAN</option>
+                        <option value="tc">TURKS DAN CAICOS ISLANDS</option>
+                        <option value="tv">TUVALU</option>
+                        <option value="ug">UGANDA</option>
+                        <option value="ua">UKRAINA</option>
+                        <option value="ae">UNITED ARAB EMIRATES</option>
+                        <option value="gb">INGGRIS</option>
+                        <option value="us">AMERIKA SERIKAT</option>
+                        <option value="uy">URUGUAY</option>
+                        <option value="uz">UZBEKISTAN</option>
+                        <option value="vu">VANUATU</option>
+                        <option value="va">VATICAN</option>
+                        <option value="ve">VENEZUELA</option>
+                        <option value="vn">VIETNAM</option>
+                        <option value="ye">YAMAN</option>
+                        <option value="zm">ZAMBIA</option>
+                        <option value="zw">ZIMBABWE</option>
+
+                        
                     </select>
                 </div>
-                <div>
-                    <label for="limit" class="block mb-2 text-sm font-semibold text-gray-400">Limit</label>
-                    <input type="number" id="limit" class="form-input p-3 rounded-lg" value="10" min="1">
+
+                <div class="form-group">
+                    <label for="limit">Jumlah Config</label>
+                    <input type="number" id="limit" class="form-control" min="1" max="100" placeholder="Maks 100" required>
+                </div>
+
+                <button type="submit" class="btn">Generate Sub Link</button>
+            </form>
+
+            <div id="loading" class="loading">Generating Link...</div>
+            <div id="error-message"></div>
+
+            <div id="result" class="result" style="display: none;">
+                <p id="generated-link"></p>
+                <div class="copy-btns">
+                    <button id="copyLink" class="copy-btn">Copy Link</button>
+                    <button id="openLink" class="copy-btn">Buka Link</button>
                 </div>
             </div>
-
-            <div class="text-center mt-10">
-                <button id="generate-btn" class="btn-generate w-full md:w-auto px-10 py-3 rounded-xl uppercase tracking-wider">
-                    <i class="fas fa-rocket mr-2"></i> GENERATE
-                </button>
-            </div>
-
-            <div class="mt-10">
-                <label class="block mb-3 text-sm font-semibold text-gray-400">Generated Link:</label>
-                <div id="result" class="result-box p-4 text-sm break-all">Your link will appear here...</div>
-                <div class="text-right mt-3">
-                    <button id="copy-btn" class="text-sm text-indigo-300 hover:text-indigo-200 font-semibold transition duration-200" style="display: none;">
-                        <i class="fas fa-copy mr-1"></i> Copy Link
-                    </button>
-                </div>
-            </div>
-    	</div>
+        </div>
     </div>
-    
-<div class="navbar" id="navbar">
-    <div class="toggle-btn" id="menu-btn" onclick="toggleNavbar()">
-        <img src="https://geoproject.biz.id/social/buka.png" alt="Toggle Menu">
-    </div>
-    <div class="navbarconten text-center">
-        <span>
-            <a href="/linksub" target="_self" rel="noopener noreferrer">
-                <img src="https://geoproject.biz.id/social/linksub.png" alt="menu" width="40" class="mt-1">
-            </a>
-        </span>
-        <!-- <span>-->
-        <span>
-            <a href="/checker" target="_self" rel="noopener noreferrer">
-                <img src="https://geoproject.biz.id/social/vpn.png" alt="menu" width="40" class="mt-1">
-            </a>
-        </span> 
-        <span>
-            <a href="https://t.me/VLTRSSbot" target="_blank" rel="noopener noreferrer">
-                <img src="https://geoproject.biz.id/social/bot.png" alt="menu" width="40" class="mt-1">
-            </a>
-        </span>
-        <span>
-            <a href="/sub" target="_self" rel="noopener noreferrer">
-                <img src="https://geoproject.biz.id/social/home.png" alt="menu" width="40" class="mt-1">
-            </a>
-        </span>
-    </div>
-</div>
-<script>
-    function toggleNavbar() {
-        const navbar = document.getElementById("navbar");
-        const menuBtn = document.getElementById("menu-btn").querySelector('img');
-
-        if (navbar.classList.contains("show")) {
-            navbar.classList.remove("show");
-            menuBtn.src = "https://geoproject.biz.id/social/buka.png";
-        } else {
-            navbar.classList.add("show");
-            menuBtn.src = "https://geoproject.biz.id/social/tutup.png";
-        }
-    }
-</script>
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const countrySelect = document.getElementById('country');
-            
-            // Fetch proxy list to populate country dropdown
-            try {
-                const response = await fetch('/api/v1/countries'); 
-                if (!response.ok) throw new Error('Failed to fetch country list');
-                
-                const countries = await response.json();
-                
-                countries.forEach(cc => {
-                    const option = document.createElement('option');
-                    option.value = cc;
-                    option.textContent = cc;
-                    countrySelect.appendChild(option);
-                });
-            } catch (error) {
-                console.error("Could not populate countries:", error);
-                countrySelect.innerHTML = '<option value="">Could not load countries</option>';
-            }
+        // Performance optimization: Use event delegation and minimize DOM queries
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('subLinkForm');
+            const loadingEl = document.getElementById('loading');
+            const resultEl = document.getElementById('result');
+            const generatedLinkEl = document.getElementById('generated-link');
+            const copyLinkBtn = document.getElementById('copyLink');
+            const openLinkBtn = document.getElementById('openLink');
+            const errorMessageEl = document.getElementById('error-message');
+            const appSelect = document.getElementById('app');
+            const configTypeSelect = document.getElementById('configType');
 
-            document.getElementById('generate-btn').addEventListener('click', () => {
-                const format = document.getElementById('format').value;
-                const vpn = document.getElementById('vpn').value;
-                const port = document.getElementById('tls').value === 'true' ? '443' : '80';
-                const bug = document.getElementById('bug').value;
-                const wc = document.getElementById('wildcard').value;
-                const cc = document.getElementById('country').value;
-                const limit = document.getElementById('limit').value;
+            // Cached selectors to minimize DOM lookups
+            const elements = {
+                app: document.getElementById('app'),
+                bug: document.getElementById('bug'),
+                configType: document.getElementById('configType'),
+                tls: document.getElementById('tls'),
+                wildcard: document.getElementById('wildcard'),
+                country: document.getElementById('country'),
+                limit: document.getElementById('limit')
+            };
 
-                const params = new URLSearchParams();
-                params.set('format', format);
-                params.set('limit', limit);
-                if (vpn) params.set('vpn', vpn);
-                if (port) params.set('port', port);
-                if (bug) params.set('bug', bug);
-                if (wc) params.set('wc', wc);
-                if (cc) params.set('cc', cc);
+            // App and config type interaction
+            appSelect.addEventListener('change', () => {
+                const selectedApp = appSelect.value;
+                const shadowsocksOption = configTypeSelect.querySelector('option[value="shadowsocks"]');
 
-                const link = window.location.protocol + '//' + window.location.host + '/api/v1/sub?' + params.toString();
+                if (selectedApp === 'surfboard') {
+                    configTypeSelect.value = 'trojan';
+                    configTypeSelect.querySelector('option[value="trojan"]').selected = true;
+                    shadowsocksOption.disabled = true;
+                } else {
+                    shadowsocksOption.disabled = false;
+                }
+            });
+
+            // Form submission handler
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
                 
-                document.getElementById('result').textContent = link;
+                // Reset previous states
+                loadingEl.style.display = 'block';
+                resultEl.style.display = 'none';
+                errorMessageEl.textContent = '';
+
+                try {
+                    // Validate inputs
+                    const requiredFields = ['bug', 'limit'];
+                    for (let field of requiredFields) {
+                        if (!elements[field].value.trim()) {
+                            throw new Error(\`Harap isi \${field === 'bug' ? 'Bug' : 'Jumlah Config'}\`);
+                        }
+                    }
+
+                    // Construct query parameters
+                    const params = new URLSearchParams({
+                        type: elements.configType.value,
+                        bug: elements.bug.value.trim(),
+                        tls: elements.tls.value,
+                        wildcard: elements.wildcard.value,
+                        limit: elements.limit.value,
+                        ...(elements.country.value !== 'all' && { country: elements.country.value })
+                    });
+
+                    // Generate full link (replace with your actual domain)
+                    const generatedLink = \`/vpn/\${elements.app.value}?\${params.toString()}\`;
+
+                    // Simulate loading (remove in production)
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Update UI
+                    loadingEl.style.display = 'none';
+                    resultEl.style.display = 'block';
+                    generatedLinkEl.textContent = \`https://\${window.location.hostname}\${generatedLink}\`;
+
+                    // Copy link functionality
+                    copyLinkBtn.onclick = async () => {
+                        try {
+                            await navigator.clipboard.writeText(\`https://\${window.location.hostname}\${generatedLink}\`);
+                            alert('Link berhasil disalin!');
+                        } catch {
+                            alert('Gagal menyalin link.');
+                        }
+                    };
+
+                    // Open link functionality
+                    openLinkBtn.onclick = () => {
+                        window.open(generatedLink, '_blank');
+                    };
+
+                } catch (error) {
+                    // Error handling
+                    loadingEl.style.display = 'none';
+                    errorMessageEl.textContent = error.message;
+                    console.error(error);
+                }
             });
         });
     </script>
 </body>
-</html>`;
-        return new Response(linksubHTML, { headers: { 'Content-Type': 'text/html;charset=utf-8' } });
-      } else if (url.pathname.startsWith("/convert")) {
-        const targetUrl = "https://jaka9m.github.io/web";
-		const requestUrl = new URL(request.url);
-		let path = requestUrl.pathname.replace("/convert", "");
-		if (path === "" || path === "/") {
-			path = "/index.html";
-		}
+</html>
+ `
+return html
+}
 
-        const newUrl = `${targetUrl}${path}`;
-        const newRequest = new Request(newUrl, {
-            method: request.method,
-            headers: request.headers,
-            body: request.body,
-            redirect: 'follow'
+async function handleWebRequest(request) {
+    const cfApi = new CloudflareApi();
+    const dynamicDomains = await cfApi.getDomainList();
+    const suffixToRemove = `.${serviceName}.${rootDomain}`;
+    // Pastikan untuk menangani domain yang mungkin tidak memiliki akhiran yang diharapkan
+    const dynamicWildcards = dynamicDomains.map(d => 
+        d.hostname.endsWith(suffixToRemove) 
+            ? d.hostname.slice(0, -suffixToRemove.length) 
+            : d.hostname
+    );
+    
+    // Gabungkan wildcard statis dan dinamis, lalu hapus duplikat
+    const allWildcards = [...new Set([...wildcards, ...dynamicWildcards])];
+
+    const fetchConfigs = async () => {
+      try {
+        const rawProxyList = await getProxyList(); // Use cached list
+        let pathCounters = {};
+
+        const configs = rawProxyList.map((config) => {
+            const countryCode = config.country;
+            if (!pathCounters[countryCode]) {
+                pathCounters[countryCode] = 1;
+            }
+            const path = `/${countryCode}${pathCounters[countryCode]}`;
+            pathCounters[countryCode]++;
+
+            return {
+                ip: config.proxyIP,
+                port: config.proxyPort,
+                countryCode: countryCode,
+                isp: config.org,
+                path: path
+            };
         });
 
-        const response = await fetch(newRequest);
-        const contentType = response.headers.get('content-type') || '';
+        return configs;
+      } catch (error) {
+        console.error('Error fetching configurations:', error);
+        return [];
+      }
+    };
 
-        if (contentType.includes('text/html')) {
-            let body = await response.text();
-            
-            // Rewrite absolute URLs
-            body = body.replace(/https:\/\/jaka9m\.github\.io\/web/g, `https://${APP_DOMAIN}/convert`);
-            
-            // Rewrite root-relative URLs
-            body = body.replace(/(src|href)="\//g, `$1="/convert/`);
+function buildCountryFlag() {
+  const flagList = cachedProxyList.map((proxy) => proxy.country);
+  const uniqueFlags = new Set(flagList);
 
-            return new Response(body, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: response.headers
+  let flagElement = "";
+  for (const flag of uniqueFlags) {
+    if (flag && flag !== "Unknown") {
+      try {
+        flagElement += `<a href="/web?page=${page}&search=${flag}" class="py-1">
+      <span class="flag-circle flag-icon flag-icon-${flag.toLowerCase()}" 
+      style="display: inline-block; width: 40px; height: 40px; margin: 2px; border: 2px solid #008080; border-radius: 50%;">
+</span>
+</a>`;
+      } catch (err) {
+        console.error(`Error generating flag for country: ${flag}`, err);
+      }
+    }
+  }
+
+  return flagElement;
+}
+
+    const getFlagEmoji = (countryCode) => {
+      if (!countryCode) return '🏳️';
+      return countryCode
+        .toUpperCase()
+        .split('')
+        .map((char) => String.fromCodePoint(0x1f1e6 - 65 + char.charCodeAt(0)))
+        .join('');
+    };
+
+    const url = new URL(request.url);
+    const hostName = url.hostname;
+    const page = parseInt(url.searchParams.get('page')) || 1;
+    const searchQuery = url.searchParams.get('search') || '';
+    const selectedWildcard = url.searchParams.get('wildcard') || '';
+    const selectedConfigType = url.searchParams.get('configType') || 'tls'; // Ambil nilai 'configType' atau gunakan default 'tls'
+    const configsPerPage = 10;
+
+    const configs = await fetchConfigs();
+    const totalConfigs = configs.length;
+
+    let filteredConfigs = configs;
+    if (searchQuery.includes(':')) {
+        // Search by IP:PORT format
+        filteredConfigs = configs.filter((config) => 
+            `${config.ip}:${config.port}`.includes(searchQuery)
+        );
+    } else if (searchQuery.length === 2) {
+        // Search by country code (if it's two characters)
+        filteredConfigs = configs.filter((config) =>
+            config.countryCode.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    } else if (searchQuery.length > 2) {
+        // Search by IP, ISP, or country code
+        filteredConfigs = configs.filter((config) =>
+            config.ip.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (`${config.ip}:${config.port}`).includes(searchQuery.toLowerCase()) ||
+            config.isp.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }
+     
+    const totalFilteredConfigs = filteredConfigs.length;
+    const totalPages = Math.ceil(totalFilteredConfigs / configsPerPage);
+    const startIndex = (page - 1) * configsPerPage;
+    const endIndex = Math.min(startIndex + configsPerPage, totalFilteredConfigs);
+    const visibleConfigs = filteredConfigs.slice(startIndex, endIndex);
+
+    const configType = url.searchParams.get('configType') || 'tls';
+
+    let cardsHTML = '';
+
+    visibleConfigs.forEach((config, index) => {
+        const rowNumber = startIndex + index + 1;
+        const uuid = generateUUIDv4();
+        const wildcard = selectedWildcard || hostName;
+        const modifiedHostName = selectedWildcard ? `${selectedWildcard}.${hostName}` : hostName;
+        const url = new URL(request.url);
+        const BASE_URL = `https://${url.hostname}`;
+        const CHECK_API = `${BASE_URL}/geo-ip?ip=`;
+        const ipPort = `${config.ip}:${config.port}`;
+        const path2 = encodeURIComponent(`/${config.ip}=${config.port}`);
+        const subP = `/Free-VPN-CF-Geo-Project`;
+
+        // Define config links
+        const vlessTLSSimple = `vless://${uuid}@${wildcard}:443?encryption=none&security=tls&sni=${modifiedHostName}&fp=randomized&type=ws&host=${modifiedHostName}&path=${encodeURIComponent(subP + config.path.toUpperCase())}#(${config.countryCode})%20${config.isp.replace(/\s/g, '%20')}${getFlagEmoji(config.countryCode)}`;
+        const vlessTLSRibet = `vless://${uuid}@${wildcard}:443?encryption=none&security=tls&sni=${modifiedHostName}&fp=randomized&type=ws&host=${modifiedHostName}&path=${subP}${path2}#(${config.countryCode})%20${config.isp.replace(/\s/g, '%20')}${getFlagEmoji(config.countryCode)}`;
+        const trojanTLSSimple = `trojan://${uuid}@${wildcard}:443?encryption=none&security=tls&sni=${modifiedHostName}&fp=randomized&type=ws&host=${modifiedHostName}&path=${encodeURIComponent(subP + config.path.toUpperCase())}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const trojanTLSRibet = `trojan://${uuid}@${wildcard}:443?encryption=none&security=tls&sni=${modifiedHostName}&fp=randomized&type=ws&host=${modifiedHostName}&path=${subP}${path2}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const ssTLSSimple = `ss://${btoa(`none:${uuid}`)}%3D@${wildcard}:443?encryption=none&type=ws&host=${modifiedHostName}&path=${encodeURIComponent(subP + config.path.toUpperCase())}&security=tls&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const ssTLSRibet = `ss://${btoa(`none:${uuid}`)}%3D@${wildcard}:443?encryption=none&type=ws&host=${modifiedHostName}&path=${subP}${path2}&security=tls&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        
+        const vlessNTLSSimple = `vless://${uuid}@${wildcard}:80?path=${encodeURIComponent(subP + config.path.toUpperCase())}&security=none&encryption=none&host=${modifiedHostName}&fp=randomized&type=ws&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const vlessNTLSRibet = `vless://${uuid}@${wildcard}:80?path=${subP}${path2}&security=none&encryption=none&host=${modifiedHostName}&fp=randomized&type=ws&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const trojanNTLSSimple = `trojan://${uuid}@${wildcard}:80?path=${encodeURIComponent(subP + config.path.toUpperCase())}&security=none&encryption=none&host=${modifiedHostName}&fp=randomized&type=ws&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const trojanNTLSRibet = `trojan://${uuid}@${wildcard}:80?path=${subP}${path2}&security=none&encryption=none&host=${modifiedHostName}&fp=randomized&type=ws&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const ssNTLSSimple = `ss://${btoa(`none:${uuid}`)}%3D@${wildcard}:80?encryption=none&type=ws&host=${modifiedHostName}&path=${encodeURIComponent(subP + config.path.toUpperCase())}&security=none&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+        const ssNTLSRibet = `ss://${btoa(`none:${uuid}`)}%3D@${wildcard}:80?encryption=none&type=ws&host=${modifiedHostName}&path=${subP}${path2}&security=none&sni=${modifiedHostName}#(${config.countryCode})%20${config.isp.replace(/\s/g,'%20')}${getFlagEmoji(config.countryCode)}`;
+
+        let vlessSimple, vlessRibet, trojanSimple, trojanRibet, ssSimple, ssRibet;
+        if (configType === 'tls') {
+            vlessSimple = vlessTLSSimple;
+            vlessRibet = vlessTLSRibet;
+            trojanSimple = trojanTLSSimple;
+            trojanRibet = trojanTLSRibet;
+            ssSimple = ssTLSSimple;
+            ssRibet = ssTLSRibet;
+        } else {
+            vlessSimple = vlessNTLSSimple;
+            vlessRibet = vlessNTLSRibet;
+            trojanSimple = trojanNTLSSimple;
+            trojanRibet = trojanNTLSRibet;
+            ssSimple = ssNTLSSimple;
+            ssRibet = ssNTLSRibet;
+        }
+
+        const cardBackgrounds = [
+     'https://www.transparenttextures.com/patterns/carbon-fibre.png'
+];
+        const backgroundUrl = cardBackgrounds[index % cardBackgrounds.length];
+
+        cardsHTML += `
+<div class="proxy-card lozad scale-95 bg-blue-300/30 dark:bg-slate-800 transition-all duration-300 rounded-lg p-6 flex flex-col shadow-lg border border-white/20 hover:scale-105 backdrop-blur-md" data-ip-port="${ipPort}" style="background-image: url('${backgroundUrl}');">
+    <div class="flex justify-between items-center">
+        <div class="status-container">
+            <div class="proxy-status">
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <span>Checking status...</span>
+                </div>
+            </div>
+            <div class="delay-badge"></div>
+        </div>
+        <div class="rounded-full overflow-hidden border-4 border-white dark:border-slate-800">
+            <img width="40" src="https://hatscripts.github.io/circle-flags/flags/${config.countryCode.toLowerCase()}.svg" alt="${config.countryCode} flag" />
+        </div>
+    </div>
+
+    <div class="rounded-lg py-4 px-4 bg-blue-200/20 dark:bg-slate-700/50 flex-grow mt-4">
+        <h5 class="font-bold text-lg text-slate-800 dark:text-slate-100 mb-2 overflow-x-scroll scrollbar-hide text-nowrap">${config.isp}</h5>
+        <div class="flex justify-between items-center">
+            <span class="text-sm font-medium text-slate-900 dark:text-white bg-white/50 dark:bg-slate-600/50 px-3 py-1.5 rounded-lg border border-slate-300/50 dark:border-slate-600/50">
+                ${config.ip}:${config.port}
+            </span>
+            <span class="text-sm font-bold text-black bg-yellow-400 dark:bg-blue-600 dark:text-white px-3 py-1.5 rounded-lg shadow-sm">
+    ${config.countryCode}
+</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 mt-4 text-sm">
+        <button class="bg-gradient-to-r from-yellow-400 to-yellow-600 dark:from-blue-500 dark:to-blue-700 rounded-md p-1.5 w-full text-black dark:text-white font-semibold transition-colors duration-200 text-xs"
+                onclick='showOptions("VLess", "${vlessRibet.replace(/"/g, '&quot;')}", "${vlessSimple.replace(/"/g, '&quot;')}", ${JSON.stringify(config).replace(/'/g, "&#39;")})'>
+            VLESS
+        </button>
+        <button class="bg-gradient-to-r from-yellow-400 to-yellow-600 dark:from-blue-500 dark:to-blue-700 rounded-md p-1.5 w-full text-black dark:text-white font-semibold transition-colors duration-200 text-xs"
+                onclick='showOptions("Trojan", "${trojanRibet.replace(/"/g, '&quot;')}", "${trojanSimple.replace(/"/g, '&quot;')}", ${JSON.stringify(config).replace(/'/g, "&#39;")})'>
+            TROJAN
+        </button>
+    </div>
+
+    <div class="button-row mt-2">
+        <button class="bg-gradient-to-r from-yellow-400 to-yellow-600 dark:from-blue-500 dark:to-blue-700 rounded-md p-1.5 w-full text-black dark:text-white font-semibold transition-colors duration-200 text-xs"
+                onclick='showOptions("SS", "${ssRibet.replace(/"/g, '&quot;')}", "${ssSimple.replace(/"/g, '&quot;')}", ${JSON.stringify(config).replace(/'/g, "&#39;")})'>
+            SHADOWSOCKS
+        </button>
+    </div>
+</div>
+`;
+
+    });
+
+    const showOptionsScript = `
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script>
+        function showOptions(type, ribet, simple, config) {
+            Swal.fire({
+                width: '270px',
+                html: \`
+                    <div class="px-1 py-1 text-center">
+                    <span class="flag-circle flag-icon flag-icon-\${config.countryCode.toLowerCase()}" 
+                    style="width: 60px; height: 60px; border-radius: 50%; display: inline-block;">
+                    </span>
+                    </div>
+                    <div class="mt-3">
+                    <div class="h-px bg-[#4682b4] shadow-sm"></div>
+                    <div class="text-xs">IP : \${config.ip}</div>
+                    <div class="text-xs">ISP : \${config.isp}</div>
+                    <div class="text-xs">Country : \${config.countryCode}</div>
+                    <div class="h-px bg-[#4682b4] shadow-sm"></div>
+                    <div class="mt-3">
+                    <button class="bg-gradient-to-r from-cyan-400 to-cyan-600 bg-opacity-80 py-2 px-3 text-xs rounded-md text-white font-semibold shadow-md" onclick="copy('\${simple}')">COPY PATH COUNTRY</button>
+                    <div class="mt-3">
+                    <button class="bg-gradient-to-r from-cyan-400 to-cyan-600 bg-opacity-80 py-2 px-3 text-xs rounded-md text-white font-semibold shadow-md" onclick="copy('\${ribet}')">COPY PATH IP PORT</button>
+                    <div class="mt-3">
+                        <button class="bg-gradient-to-r from-red-500 to-red-700 bg-opacity-80 py-2 px-3 text-xs rounded-md text-white font-semibold shadow-md" onclick="Swal.close()">Close</button>
+                    </div>
+                \`,
+                showCloseButton: false,
+                showConfirmButton: false,
+                background: 'rgba(6, 18, 67, 0.70)',
+                color: 'white',
+                customClass: {
+                    popup: 'rounded-popup',
+                    closeButton: 'close-btn'
+                },
+                position: 'center', 
+                showClass: {
+                    popup: 'animate__animated animate__fadeInLeft' 
+                },
+                hideClass: {
+                    popup: 'animate__animated animate__fadeOutRight' 
+                },
+                didOpen: () => {
+                    const popup = document.querySelector('.swal2-popup');
+                    popup.style.animationDuration = '0.3s'; 
+                },
+                didClose: () => {
+                    const popup = document.querySelector('.swal2-popup');
+                    popup.style.animationDuration = '0.3s'; 
+                }
             });
         }
-        
-        return new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers
-        });
-      }
+    <\/script>
+    `;
 
-      const targetReversePrx = env.REVERSE_PRX_TARGET || "example.com";
-      return await reverseWeb(request, targetReversePrx);
-    } catch (err) {
-      return new Response(`An error occurred: ${err.toString()}`, {
-        status: 500,
-        headers: {
-          ...CORS_HEADER_OPTIONS,
-        },
-      });
+    const paginationButtons = [];
+    const pageRange = 2;
+
+    for (let i = Math.max(1, page - pageRange); i <= Math.min(totalPages, page + pageRange); i++) {
+      paginationButtons.push(
+        `<a href="?page=${i}&wildcard=${encodeURIComponent(selectedWildcard)}&configType=${encodeURIComponent(selectedConfigType)}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}" class="pagination-number ${i === page ? 'active' : ''}">${i}</a>`
+      );
     }
-  },
-};
 
-async function websocketHandler(request, env) {
-	const webSocketPair = new WebSocketPair();
-	const [client, webSocket] = Object.values(webSocketPair);
+    const prevPage = page > 1
+      ? `<a href="?page=${page - 1}&wildcard=${encodeURIComponent(selectedWildcard)}&configType=${encodeURIComponent(selectedConfigType)}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}" class="pagination-arrow">◁</a>`
+      : '';
 
-	webSocket.accept();
+    const nextPage = page < totalPages
+      ? `<a href="?page=${page + 1}&wildcard=${encodeURIComponent(selectedWildcard)}&configType=${encodeURIComponent(selectedConfigType)}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}" class="pagination-arrow">▷</a>`
+      : '';
 
-	let addressLog = '';
-	let portLog = '';
-	const log = (info, event) => {
-		console.log(`[${addressLog}:${portLog}] ${info}`, event || '');
-	};
-	const earlyDataHeader = request.headers.get('sec-websocket-protocol') || '';
+  return new Response(`
 
-	const readableWebSocketStream = makeReadableWebSocketStream(webSocket, earlyDataHeader, log);
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <title>Geo-VPN | VPN Tunnel | CloudFlare</title>
+        
+        <meta name="description" content="Akun Vless Gratis. Geo-VPN offers free Vless accounts with Cloudflare and Trojan support. Secure and fast VPN tunnel services.">
+        <meta name="keywords" content="Geo-VPN, Free Vless, Vless CF, Trojan CF, Cloudflare, VPN Tunnel, Akun Vless Gratis">
+        <meta name="author" content="Geo-VPN">
+        <meta name="robots" content="index, follow"> 
+        <meta name="robots" content="noarchive"> 
+        <meta name="robots" content="max-snippet:-1, max-image-preview:large, max-video-preview:-1"> 
+        
+        <meta property="og:title" content="Geo-VPN | Free Vless & Trojan Accounts">
+        <meta property="og:description" content="Geo-VPN provides free Vless accounts and VPN tunnels via Cloudflare. Secure, fast, and easy setup.">
+        <meta property="og:image" content="https://geoproject.biz.id/circle-flags/bote.png">
+        <meta property="og:url" content="https://geoproject.biz.id/circle-flags/bote.png">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Geo-VPN">
+        <meta property="og:locale" content="en_US">
+        
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="Geo-VPN | Free Vless & Trojan Accounts">
+        <meta name="twitter:description" content="Get free Vless accounts and fast VPN services via Cloudflare with Geo-VPN. Privacy and security guaranteed.">
+        <meta name="twitter:image" content="https://geoproject.biz.id/circle-flags/bote.png"> 
+        <meta name="twitter:site" content="@sampiiiiu">
+        <meta name="twitter:creator" content="@sampiiiiu">
+        <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icon-css/css/flag-icon.min.css">
+        <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.1/css/all.css">
+        
+        <meta property="og:image:type" content="image/jpeg"> 
+        <meta property="og:image:secure_url" content="https://geoproject.biz.id/circle-flags/bote.png">
+        <meta property="og:audio" content="URL-to-audio-if-any"> 
+        <meta property="og:video" content="URL-to-video-if-any"> 
+        
+        <meta name="theme-color" content="#000000"> 
+        <meta name="format-detection" content="telephone=no"> 
+        <meta name="generator" content="Geo-VPN">
+        <meta name="google-site-verification" content="google-site-verification-code">
+        
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="Geo-VPN Image Preview">
+        
+        <link rel="icon" href="https://geoproject.biz.id/circle-flags/bote.png">
+        <link rel="apple-touch-icon" href="https://geoproject.biz.id/circle-flags/bote.png">
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                darkMode: 'selector',
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            sans: ['Rajdhani', 'sans-serif'],
+                            display: ['Orbitron', 'sans-serif'],
+                        },
+                        colors: {
+                            'cyber-bg': '#0a0a0a',
+                            'cyber-primary': '#00f2ff',
+                            'cyber-secondary': '#ff00ff',
+                            'cyber-accent': '#ff0066',
+                        },
+                        animation: {
+                            'pulse-glow': 'pulseGlow 2s ease-in-out infinite alternate',
+                            'scanline': 'scanline 2s linear infinite',
+                        }
+                    },
+                },
+            };
+        </script>
 
-	let remoteSocketWrapper = {
-		value: null,
-	};
-	let udpOutboundWriter = null;
-	let isDNS = false;
+        <script>
+            // On page load or when changing themes, best to add inline in head to avoid FOUC
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark')
+            }
+        </script>
+        
+        <style>
+:root {
+    --primary: #22c55e;
+    --secondary: #10b981;
+    --neon-magenta: #ff00ff;
+    --dark-bg: #030617;
+    --light: #e0f2fe;
+    --gray-light: #94a3b8;
+    --glass: rgba(25, 30, 45, 0.7);
+    --glass-border: rgba(34, 197, 94, 0.3);
+    --neon-cyan: #00ff00;
+    --light-bg: #f0f4f8;
+    --dark-text: #1e293b;
+    --container-light-bg: rgba(255, 255, 255, 0.9);
+    --container-light-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
 
-	// process readableWebSocketStream
-	readableWebSocketStream.pipeTo(new WritableStream({
-		async write(chunk, controller) {
-			if (isDNS) {
-				if (udpOutboundWriter) {
-					return udpOutboundWriter(chunk);
-				}
-				// It should not reach here.
-				return;
-			}
-			if (remoteSocketWrapper.value) {
-				const writer = remoteSocketWrapper.value.writable.getWriter();
-				await writer.write(chunk);
-				writer.releaseLock();
-				return;
-			}
+@keyframes neon-pulse {
+    0% { box-shadow: 0 0 5px var(--neon-cyan); }
+    50% { box-shadow: 0 0 15px var(--neon-cyan), 0 0 20px var(--neon-magenta); }
+    100% { box-shadow: 0 0 5px var(--neon-cyan); }
+}
 
-			const protocol = await protocolSniffer(chunk);
-			let protocolHeader;
+@keyframes lightning {
+    0% { opacity: 0; transform: translateX(-100%) skewX(-20deg); }
+    50% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(100%) skewX(-20deg); }
+}
 
-			if (protocol === atob(horse)) {
-				protocolHeader = readHorseHeader(chunk);
-			} else if (protocol === atob(flash)) {
-				protocolHeader = readFlashHeader(chunk);
-			} else if (protocol === 'ss') {
-				protocolHeader = readSsHeader(chunk);
-			} else {
-				throw new Error('Unknown Protocol!');
-			}
+@keyframes neonBlink {
+    0%, 100% { 
+        opacity: 1; 
+        text-shadow: 
+            0 0 5px #00FF00,
+            0 0 10px #00FF00,
+            0 0 15px #00FF00,
+            0 0 20px #00FF00;
+    }
+    50% { 
+        opacity: 0.7; 
+        text-shadow: 
+            0 0 2px #00FF00,
+            0 0 5px #00FF00,
+            0 0 7px #00FF00,
+            0 0 10px #00FF00;
+    }
+}
 
-            // UUID Validation
-            const uuid = protocolHeader.uuid;
-            if (uuid) {
-                const accounts = await env.ACCOUNTS_KV.get('accounts_list', { type: 'json' }) || [];
-                if (!accounts.some(acc => acc.uuid === uuid)) {
-                    throw new Error('Forbidden: Invalid UUID');
+@keyframes deadPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes titlePulse {
+    0%, 100% { 
+        transform: scale(1) translateZ(0); 
+        filter: brightness(1) drop-shadow(0 0 15px rgba(0, 255, 136, 0.4));
+    }
+    50% { 
+        transform: scale(1.01) translateZ(5px);
+        filter: brightness(1.2) drop-shadow(0 0 20px rgba(0, 255, 136, 0.6));
+    }
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes shine {
+    0%, 100% {
+        opacity: 0.2;
+        transform: translateX(-5px);
+    }
+    50% {
+        opacity: 0.6;
+        transform: translateX(5px);
+    }
+}
+
+@keyframes errorAnim {
+    0% { transform: scale(0); }
+    100% { transform: scale(1); }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacMacFont, sans-serif;
+}
+
+body {
+    background-color: var(--light-bg);
+    color: var(--dark-text);
+    min-height: 100vh;
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+.dark body { 
+    background-color: var(--dark-bg);
+    color: var(--light);
+    background-image: url('https://www.transparenttextures.com/patterns/cubes.png');
+    background-size: cover;
+}
+
+.quantum-container {
+    max-width: 350px;
+    margin: 20px auto;
+    background-image: url('https://www.transparenttextures.com/patterns/inspiration-geometry.png');
+    padding: 20px;
+    background-color: var(--container-light-bg);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 15px;
+    backdrop-filter: blur(8px);
+    box-shadow: var(--container-light-shadow);
+    min-height: calc(100vh - 40px);
+}
+
+.dark .quantum-container {
+    background-color: rgba(3, 6, 23, 0.85); 
+    border-color: var(--glass-border);
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.6);
+}
+
+.dark .quantum-container > div:last-child {
+    text-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+.dark .quantum-title {
+    -webkit-text-fill-color: transparent;
+}
+
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(3, 6, 23, 0.98), rgba(6, 12, 30, 0.98)),
+                url('https://img.wattpad.com/63b4fef6d4a8b5eef3a12394990aea164cfe4be1/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f776174747061642d6d656469612d736572766963652f53746f7279496d616765L434916e4f5962596f476f5241773d3d2d3132302e313563323538386461323838623263313733313931313130373332332e6a7067?s=fit&w=720&h=720') no-repeat center center fixed;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(10px);
+    transition: opacity 0.5s, transform 0.5s;
+}
+
+.popup-container {
+    background: var(--glass);
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    border: 2px solid var(--neon-cyan);
+    box-shadow: 0 0 30px var(--neon-cyan), 0 0 50px var(--neon-magenta);
+    max-width: 500px;
+    width: 90%;
+    position: relative;
+    overflow: hidden;
+    animation: neon-pulse 5s infinite alternate;
+}
+
+.popup-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--neon-magenta), var(--neon-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 15px;
+    text-shadow: 0 0 15px var(--neon-magenta), 0 0 15px var(--neon-cyan);
+}
+
+.popup-progress {
+    width: 100%;
+    height: 20px;
+    background: var(--glass);
+    border-radius: 10px;
+    margin: 20px 0;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+}
+
+.popup-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-magenta), var(--neon-cyan));
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+}
+
+.popup-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.wildcard-dropdown {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+    margin-bottom: 25px;
+    width: 50%;
+    max-width: 250px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+select {
+    width: 100%;
+    max-width: 200px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    color: var(--light);
+    background: rgba(34, 197, 94, 0.05);
+    border: 2px solid rgba(34, 197, 94, 0.3);
+    border-radius: 10px;
+    outline: none;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    appearance: none;
+    background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23e0f2fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M6 9l6 6 6-6"%3E%3C/path%3E%3C/svg%3E');
+    background-position: right 10px center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+select:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
+}
+
+select:focus {
+    border-color: var(--primary);
+    background: rgba(34, 197, 94, 0.1);
+    box-shadow: 0 0 20px var(--primary);
+}
+
+.wildcard-dropdown select option {
+    background-color: var(--dark-bg);
+}
+
+.quantum-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.8rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
+.quantum-pagination a {
+    padding: 0.8rem 1.5rem;
+    background: rgba(0, 255, 136, 0.1);
+    color: var(--primary);
+    text-decoration: none;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    transition: all 0.3s ease;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    min-width: 45px;
+    text-align: center;
+}
+
+.quantum-pagination a:hover,
+.quantum-pagination a.active {
+    background: var(--primary);
+    color: var(--dark-bg);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 255, 136, 0.2);
+}
+
+.quantum-pagination {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.quantum-pagination a {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.7rem;
+    min-width: 30px;
+}
+
+.pagination-btn:hover:not(.active), .pagination-number:hover:not(.active) {
+    background-position: -100% 0;
+    box-shadow: 0 0 15px var(--primary);
+    transform: scale(1.05);
+    color: var(--dark-bg) !important;
+}
+
+.pagination-number.active {
+    background: var(--neon-magenta);
+    color: white !important;
+    border-color: var(--neon-magenta);
+    box-shadow: 0 0 15px var(--neon-magenta);
+}
+
+.neon-active {
+    color: #00FF00;
+    text-shadow: 
+        0 0 5px #00FF00,
+        0 0 10px #00FF00,
+        0 0 15px #00FF00,
+        0 0 20px #00FF00;
+    animation: neonBlink 2s infinite;
+}
+
+.neon-dead {
+    color: #FF3333;
+    text-shadow: 
+        0 0 5px #FF3333,
+        0 0 10px #FF3333,
+        0 0 15px #FF3333;
+    animation: deadPulse 1.5s infinite;
+}
+
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    font-family: 'Arial', sans-serif;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    color: #2d3748;
+    border: 1px solid #e2e8f0;
+    backdrop-filter: blur(5px);
+}
+
+.dark .status-container {
+    background: rgba(0, 0, 0, 0.5);
+    color: #f7fafc;
+    border: 1px solid #4a5568;
+    backdrop-filter: blur(5px);
+}
+
+.status-container * {
+    color: inherit;
+}
+
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+.delay-badge {
+    background: linear-gradient(45deg, #FFD700, #FFA500);
+    color: #000;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 12px;
+    box-shadow: 0 0 5px gold;
+}
+
+.loading-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+.loading-icon {
+    color: #4CAF50;
+    font-size: 20px;
+}
+
+.error-icon {
+    color: red;
+    font-size: 18px;
+    animation: errorAnim 0.3s ease-in-out;
+}
+
+.quantum-title {
+    font-family: 'Rajdhani', sans-serif;
+    padding-top: 8px;
+    margin-top: 8px;
+    text-align: center;
+    font-size: 16vw;
+    font-weight: 600;
+    background: linear-gradient(145deg,
+        #00ff88 0%,
+        #00cc66 25%,
+        #10b981 50%,
+        #047857 75%,
+        #064e3b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% 200%;
+    animation: gradientShift 4s ease infinite;
+    /* text-shadow: <- BAYANGAN ASLI DIHAPUS */
+    /*
+        2px 2px 0px rgba(4, 120, 87, 0.6),
+        4px 4px 0px rgba(4, 120, 87, 0.4),
+        6px 6px 0px rgba(4, 120, 87, 0.2),
+        -1px -1px 0px rgba(255, 255, 255, 0.3),
+        0 0 8px rgba(0, 255, 136, 0.6),
+        0 0 15px rgba(0, 204, 102, 0.4),
+        0 0 20px rgba(16, 185, 129, 0.3);
+    */
+    position: relative;
+    animation: titlePulse 3s ease-in-out infinite, gradientShift 4s ease infinite;
+    transform-style: preserve-3d;
+    perspective: 500px;
+}
+
+.quantum-title::before {
+    content: attr(data-text);
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    background: linear-gradient(45deg, transparent 30%, rgba(0, 255, 136, 0.1) 50%, transparent 70%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    z-index: -1;
+    animation: shine 3s ease-in-out infinite;
+}
+
+.quantum-title::after {
+    content: attr(data-text);
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: linear-gradient(45deg, rgba(0, 0, 0, 0.1) 0%, transparent 50%, rgba(0, 0, 0, 0.1) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    z-index: -2;
+}
+
+.quantum-title1 {
+    text-align: center;
+    font-size: 3vw;
+    font-weight: 500;
+    background: linear-gradient(145deg, #10b981, #22c55e, #16a34a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    /* text-shadow: <- BAYANGAN UNTUK quantum-title1 TETAP ADA */
+    text-shadow:
+        1px 1px 0px rgba(4, 120, 87, 0.5),
+        2px 2px 0px rgba(4, 120, 87, 0.3),
+        0 0 8px rgba(16, 185, 129, 0.4),
+        0 0 15px rgba(34, 197, 94, 0.3);
+}
+
+.quantum-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.8rem;
+}
+
+@media (min-width: 640px) {
+    .quantum-container {
+        max-width: 900px;
+    }
+    .quantum-container .table-wrapper {
+        width: calc(100% + 40px);
+        margin-left: -20px;
+        margin-right: -20px;
+        padding-left: 10px;
+        padding-right: 10px;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .quantum-title {
+        font-size: 2.5rem;
+        /* text-shadow: <- BAYANGAN DI MEDIA QUERY INI DIHAPUS/DIHILANGKAN */
+        /*
+            1px 1px 0px rgba(4, 120, 87, 0.6),
+            2px 2px 0px rgba(4, 120, 87, 0.4),
+            0 0 6px rgba(0, 255, 136, 0.5),
+            0 0 12px rgba(0, 204, 102, 0.3);
+        */
+        text-shadow: none; /* Tambahkan ini untuk memastikan text-shadow dihilangkan */
+    }
+}
+
+@media (min-width: 1024px) {
+    .quantum-title {
+        font-size: 3rem;
+        margin-bottom: 0.8rem;
+    }
+}
+</style>
+<style>
+.swal-copy-popup {
+    @apply backdrop-blur-md border border-cyan-400/30 shadow-lg shadow-cyan-500/20;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.swal-copy-title {
+    @apply text-green-400 font-semibold tracking-wide;
+    font-size: 0.9rem !important;
+    margin-bottom: 8px !important;
+}
+
+.swal-copy-content {
+    @apply text-gray-200 font-mono;
+    font-size: 0.75rem !important;
+    word-break: break-all;
+    line-height: 1.2 !important;
+}
+
+.swal-popup-extra-small-text {
+    @apply backdrop-blur-md border border-red-400/30;
+    border-radius: 10px;
+}
+
+.swal-title-extra-small-text {
+    font-size: 0.85rem !important;
+    margin-bottom: 5px !important;
+}
+
+.swal-content-extra-small-text {
+    font-size: 0.7rem !important;
+    line-height: 1.1 !important;
+}
+
+.quantum-toast {
+    @apply fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg transition-all duration-300 z-50;
+    font-size: 0.8rem;
+}
+</style>
+
+    
+    </head>
+   <body>
+   ${SIDEBAR_COMPONENT}
+    <div class="quantum-container">
+            <h1 class="quantum-title" data-text="${namaWeb}">${namaWeb}</h1>
+
+
+                <div class="wildcard-dropdown"> 
+                    <button onclick="toggleWildcardsWindow()" class="bg-gradient-to-r from-green-500 to-green-700 rounded-full p-2 block text-white border-2 border-green-900 transition duration-300 ease-in-out hover:from-green-700 hover:to-green-900">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+                        </svg> 
+                    </button>
+                    <select id="wildcard" name="wildcard" onchange="onWildcardChange(event)" style="width: 90px; height: 45px;">
+                        <option value="" ${!selectedWildcard ? 'selected' : ''}>No Wildcard</option>
+                        ${allWildcards.map(w => `<option value="${w}" ${selectedWildcard === w ? 'selected' : ''}>${w}</option>`).join('')}
+                    </select>
+                    <select id="configType" name="configType" onchange="onConfigTypeChange(event)" style="width: 60px; height: 45px;">
+                        <option value="tls" ${selectedConfigType === 'tls' ? 'selected' : ''}>TLS</option>
+                        <option value="non-tls" ${selectedConfigType === 'non-tls' ? 'selected' : ''}>NON TLS</option> 
+                    </select>
+                    <a href="${telegrambot}" target="_blank">
+                        <button class="bg-gradient-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 rounded-full border-2 border-gray-900 p-2 transition-colors duration-200 shadow-lg z-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-6">
+                                <path d="M22 12A10 10 0 0 1 12 2A10 10 0 0 1 2 12A10 10 0 0 1 12 22A10 10 0 0 1 22 12z"></path>
+                                <path d="M7 10l5 5l5-5"></path>
+                                <path d="M12 15l-5 5"></path>
+                                <path d="M12 15l5 5"></path>
+                            </svg> 
+                        </button> 
+                    </a>
+                    </div>
+                
+            <div class="w-full h-12 px-2 py-1 flex items-center space-x-2 shadow-lg border"
+                    style="border-width: 2px; border-style: solid; border-color: #28a745; height: 55px; border-radius: 10px; background: linear-gradient(to right, rgba(40, 167, 69, 0.6), rgba(40, 167, 69, 0.2)); overflow-x: auto; overflow-y: hidden;">
+                    ${buildCountryFlag()}
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                    ${cardsHTML}
+                </div>
+                
+                ${showOptionsScript}
+                
+                <script>
+            /* [PERBAIKAN 4]: Menggunakan document.documentElement untuk mendapatkan tag <html> */
+            function toggleDarkMode() {
+                const rootElement = document.documentElement; // <-- Diperbaiki!
+                if (rootElement.classList.contains("dark")) {
+                  rootElement.classList.remove("dark");
+                  localStorage.setItem('theme', 'light');
+                } else {
+                  rootElement.classList.add("dark");
+                  localStorage.setItem('theme', 'dark');
                 }
             }
+        </script>
 
-			addressLog = protocolHeader.addressRemote;
-			portLog = `${protocolHeader.portRemote} -> ${protocolHeader.isUDP ? 'UDP' : 'TCP'}`;
 
-			if (protocolHeader.hasError) {
-				throw new Error(protocolHeader.message);
-			}
+                <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const cards = document.querySelectorAll('.proxy-card');
+                    const checkAllProxies = async () => {
+                        for (const card of cards) {
+                            const ipPort = card.dataset.ipPort;
+                            const statusElement = card.querySelector('.proxy-status');
+                            const delayElement = card.querySelector('.delay-badge');
+                            const healthCheckUrl = \`/geo-ip?ip=\${ipPort}\`;
 
-			if (protocolHeader.isUDP) {
-				// By default, Cloudflare Workers cannot send raw UDP packets.
-				// This implementation relays UDP packets over HTTPS to a DNS-over-HTTPS (DoH) resolver.
-				// While this enables UDP for any port, it will only work correctly for DNS queries,
-				// as all traffic is sent to the configured DoH server.
-				isDNS = true; // Flag to indicate UDP traffic
-				const udpOutbound = await handleUDPOutbound(webSocket, protocolHeader.version, log);
-				udpOutboundWriter = udpOutbound.write;
-				udpOutboundWriter(protocolHeader.rawClientData);
-				return;
-			}
-			handleTCPOutBound(remoteSocketWrapper, protocolHeader.addressRemote, protocolHeader.portRemote, protocolHeader.rawClientData, webSocket, protocolHeader.version, log);
-		},
-		close() {
-			log(`readableWebSocketStream is close`);
-		},
-		abort(reason) {
-			log(`readableWebSocketStream is abort`, JSON.stringify(reason));
-		},
-	})).catch((err) => {
-		log('readableWebSocketStream pipeTo error', err);
-	});
+                            try {
+                                const response = await fetch(healthCheckUrl);
+                                if (!response.ok) throw new Error('Network response was not ok');
+                                
+                                const data = await response.json();
+                                const status = data.status || 'UNKNOWN';
+                                let delay = parseFloat(data.delay) || NaN;
 
-	return new Response(null, {
-		status: 101,
-		webSocket: client,
-	});
+                                if (!isNaN(delay)) {
+                                    delay = Math.round(delay);
+                                    delayElement.textContent = delay + ' ms';
+                                    delayElement.style.display = 'block';
+                                } else {
+                                    delayElement.textContent = 'N/A';
+                                }
+
+                                let statusHTML = '';
+                                let delayText = delayElement.textContent;
+                                
+                                switch (status) {
+                                    case 'ACTIVE':
+                                        statusHTML = \`
+                                            <div class="status-badge neon-active">
+                                                <i class="fas fa-bolt"></i>
+                                                <span>ACTIVE</span>
+                                            </div>
+                                        \`;
+                                        break;
+                                    case 'DEAD':
+                                        statusHTML = \`
+                                            <div class="status-badge neon-dead">
+                                                <i class="fas fa-times-circle"></i>
+                                                <span>DEAD</span>
+                                            </div>
+                                        \`;
+                                        delayText = '∞ ms';
+                                        break;
+                                    default:
+                                        statusHTML = \`
+                                            <div class="status-badge" style="color: orange;">
+                                                <i class="fas fa-question-circle"></i>
+                                                <span>UNKNOWN</span>
+                                            </div>
+                                        \`;
+                                }
+                                
+                                statusElement.innerHTML = statusHTML;
+                                delayElement.textContent = delayText;
+
+                            } catch (error) {
+                                console.error('Health check error for \${ipPort}:', error);
+                                statusElement.innerHTML = \`
+                                    <div class="status-badge" style="color: cyan;">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <span>ERROR</span>
+                                    </div>
+                                \`;
+                                delayElement.textContent = '! ms';
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay between checks
+                        }
+                    };
+
+                    checkAllProxies();
+                    setInterval(checkAllProxies, 500); // Re-check all every 60 seconds
+                });
+                </script>
+
+                <div class="quantum-pagination">
+                ${prevPage}
+                ${paginationButtons.join('')}
+                ${nextPage}
+            </div>
+          <!-- Showing X to Y of Z Proxies message -->
+          <div style="text-align: center; margin-top: 16px; color: var(--primary); font-family: 'Rajdhani', sans-serif;">
+            Showing ${startIndex + 1} to ${endIndex} of ${totalFilteredConfigs} Proxies
+            </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+function copy(text) {
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            Swal.fire({
+                icon: 'success',
+                background: 'rgba(6, 18, 67, 0.95)',
+                color: 'white',
+                title: 'URL Copied!',
+                width: '200px',
+                padding: '10px',
+                text: text,
+                timer: 1200,
+                showConfirmButton: false,
+                backdrop: 'rgba(0,0,0,0.4)',
+                customClass: {
+                    popup: 'swal-copy-popup',
+                    title: 'swal-copy-title',
+                    htmlContainer: 'swal-copy-content'
+                }
+            });
+        })
+        .catch(() => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Copy Failed',
+                text: 'Please try again!',
+                width: '220px',
+                background: 'rgba(6, 18, 67, 0.95)',
+                color: 'white',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        });
+}
+
+const updateURL = (params) => {
+    const url = new URL(window.location.href);
+
+    params.forEach(({ key, value }) => {
+        if (key === 'search' && value) {
+            url.searchParams.set('page', '1');
+        }
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+
+    window.location.href = url.toString();
+};
+
+function goToHomePage(hostName) {
+    const homeURL = 'https://' + hostName + '/web';
+    window.location.href = homeURL;
+}
+
+function onWildcardChange(event) {
+    updateURL([{ key: 'wildcard', value: event.target.value }]);
+}
+
+function onConfigTypeChange(event) {
+    updateURL([{ key: 'configType', value: event.target.value }]);
+}
+
+function showToast(message, isError = false) {
+    const toast = document.createElement('div');
+    toast.className = 'quantum-toast';
+    toast.textContent = message;
+    if (isError) {
+        toast.style.background = '#ff3366';
+    }
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+}
+
+function executeSearch() {
+    const query = document.getElementById('search-bar').value.trim();
+    if (query) {
+        updateURL([{ key: 'search', value: query }]);
+    } else {
+        Swal.fire({
+            title: 'Error',
+            width: '220px',
+            text: 'Please enter a search term.',
+            icon: 'error',
+            background: 'rgba(6, 18, 67, 0.95)',
+            color: 'white',
+            timer: 1500,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'swal-popup-extra-small-text',
+                title: 'swal-title-extra-small-text',
+                content: 'swal-content-extra-small-text',
+            }
+        });
+    }
+}
+
+document.getElementById('search-bar').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        executeSearch();
+    }
+});
+
+document.getElementById('search-button').addEventListener('click', executeSearch);
+</script>
+
+<div id="wildcards-window" class="fixed hidden z-30 top-0 right-0 w-full h-full flex justify-center items-center">
+  <div class="w-[75%] max-w-md h-auto flex flex-col gap-2 p-4 rounded-lg 
+              bg-blue-500 bg-opacity-20 backdrop-blur-md 
+              border border-blue-300 text-white"> 
+      
+      <!-- Input add domain -->
+      <div class="flex w-full h-full gap-2 justify-between">
+          <input id="new-domain-input" 
+                 type="text" 
+                 placeholder="Input wildcard" 
+                 class="w-full px-4 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <button id="add-domain-button" onclick="registerDomain()" 
+                  class="p-2 rounded-full bg-blue-600 hover:bg-blue-700 flex justify-center items-center text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
+                  <path fill-rule="evenodd" d="M16.72 7.72a.75.75 0 0 1 1.06 0l3.75 3.75a.75.75 0 0 1 0 1.06l-3.75 3.75a.75.75 0 1 1-1.06-1.06l2.47-2.47H3a.75.75 0 0 1 0-1.5h16.19l-2.47-2.47a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
+              </svg>
+          </button>
+      </div>
+
+      <!-- Container list domain -->
+      <div id="container-domains" 
+           class="w-full h-32 rounded-md flex flex-col gap-1 overflow-y-scroll scrollbar-hide p-2 bg-gray-900 text-white">
+      </div>
+  
+      <!-- Input delete domain -->
+      <div class="flex w-full h-full gap-2 justify-between">
+          <input id="delete-domain-input" 
+                 type="number" 
+                 placeholder="Input Nomor" 
+                 class="w-full px-4 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <input id="delete-domain-password" 
+                 type="password" 
+                 placeholder="Input Password" 
+                 class="w-full px-4 py-2 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+          <button id="delete-domain-button" onclick="deleteDomainByNumber()" 
+                  class="p-2 rounded-full bg-red-600 hover:bg-red-700 flex justify-center items-center text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
+                  <path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clip-rule="evenodd" />
+              </svg>
+          </button>
+      </div>
+
+      <!-- Loading indicator -->
+      <div id="wildcard-loading" class="hidden w-full text-center">
+          <div class="popup-progress">
+              <div class="popup-progress-fill" id="popupProgress"></div>
+          </div>
+          <p style="margin-top: 10px; font-size: 0.9em; color: #aaa;">Loading...</p>
+      </div>
+
+      <!-- Close button -->
+      <button onclick="toggleWildcardsWindow()" 
+              class="mt-1 p-3 rounded-lg bg-red-500 hover:bg-red-600 text-xs font-semibold transition-colors duration-300 flex items-center justify-center gap-1 px-6 py-2 text-white">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+          </svg>
+          Close
+      </button>
+  </div>
+</div>
+
+    <script>
+        let domains = [];
+        const wildcardsWindow = document.getElementById('wildcards-window');
+        const domainsContainer = document.getElementById('container-domains');
+        
+        async function loadDomains() {
+            try {
+                const response = await fetch('/api/v1/domains');
+                if (response.ok) {
+                    domains = await response.json();
+                    domainsContainer.innerHTML = domains.map((d, i) => \`<div>\${i + 1}. \${d.hostname}</div>\`).join('');
+                } else {
+                    console.error('Failed to load domains');
+                }
+            } catch (error) {
+                console.error('Error loading domains:', error);
+            }
+        }
+
+        function toggleWildcardsWindow() {
+            if (wildcardsWindow.classList.contains('hidden')) {
+                loadDomains();
+                wildcardsWindow.classList.remove('hidden');
+            } else {
+                wildcardsWindow.classList.add('hidden');
+            }
+        }
+
+        function setLoadingState(isLoading) {
+            const loading = document.getElementById('wildcard-loading');
+            const newDomainInput = document.getElementById('new-domain-input');
+            const addDomainButton = document.getElementById('add-domain-button');
+            const deleteDomainInput = document.getElementById('delete-domain-input');
+            const deleteDomainButton = document.getElementById('delete-domain-button');
+            const progressFill = document.getElementById('popupProgress');
+
+            if (isLoading) {
+                loading.classList.remove('hidden');
+                newDomainInput.disabled = true;
+                addDomainButton.disabled = true;
+                deleteDomainInput.disabled = true;
+                deleteDomainButton.disabled = true;
+                
+                progressFill.style.width = '0%';
+                // Use a timeout to ensure the transition is applied after the initial width is set
+                setTimeout(() => {
+                    progressFill.style.transition = 'width 2s ease-in-out';
+                    progressFill.style.width = '80%';
+                }, 100);
+
+            } else {
+                progressFill.style.width = '100%';
+                setTimeout(() => {
+                    loading.classList.add('hidden');
+                    // Reset for next time
+                    progressFill.style.width = '0%';
+                    progressFill.style.transition = '';
+                }, 500);
+
+                newDomainInput.disabled = false;
+                addDomainButton.disabled = false;
+                deleteDomainInput.disabled = false;
+                deleteDomainButton.disabled = false;
+            }
+        }
+
+        async function registerDomain() {
+            const input = document.getElementById('new-domain-input');
+            const domain = input.value.trim();
+            if (!domain) return;
+
+            setLoadingState(true);
+
+            try {
+                const response = await fetch('/api/v1/domains', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain }),
+                });
+                if (response.ok) {
+                    input.value = '';
+                    await loadDomains();
+                } else {
+                    alert('Failed to register domain: ' + await response.text());
+                }
+            } catch (error) {
+                console.error('Error registering domain:', error);
+                alert('An error occurred while registering the domain.');
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        async function deleteDomainByNumber() {
+            const numberInput = document.getElementById('delete-domain-input');
+            const passwordInput = document.getElementById('delete-domain-password');
+            const number = parseInt(numberInput.value, 10);
+            const password = passwordInput.value;
+
+            if (isNaN(number) || number < 1 || number > domains.length) {
+                alert('Invalid number');
+                return;
+            }
+
+            const domainToDelete = domains[number - 1];
+            setLoadingState(true);
+
+            try {
+                const response = await fetch('/api/v1/domains', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: domainToDelete.id, password: password }),
+                });
+
+                if (response.ok) {
+                    numberInput.value = '';
+                    passwordInput.value = '';
+                    await loadDomains();
+                } else {
+                    alert('Failed to delete domain: ' + await response.text());
+                }
+            } catch (error) {
+                console.error('Error deleting domain:', error);
+                alert('An error occurred while deleting the domain.');
+            } finally {
+                setLoadingState(false);
+            }
+        }
+    </script>
+</body>
+</html>
+
+  `, { headers: { 'Content-Type': 'text/html' } });
+}
+
+async function websockerHandler(request) {
+  const webSocketPair = new WebSocketPair();
+  const [client, webSocket] = Object.values(webSocketPair);
+
+  webSocket.accept();
+
+  let addressLog = "";
+  let portLog = "";
+  const log = (info, event) => {
+    console.log(`[${addressLog}:${portLog}] ${info}`, event || "");
+  };
+  const earlyDataHeader = request.headers.get("sec-websocket-protocol") || "";
+
+  const readableWebSocketStream = makeReadableWebSocketStream(webSocket, earlyDataHeader, log);
+
+  let remoteSocketWrapper = {
+    value: null,
+  };
+  let udpStreamWrite = null;
+  let isDNS = false;
+
+  readableWebSocketStream
+    .pipeTo(
+      new WritableStream({
+        async write(chunk, controller) {
+          if (isDNS && udpStreamWrite) {
+            return udpStreamWrite(chunk);
+          }
+          if (remoteSocketWrapper.value) {
+            const writer = remoteSocketWrapper.value.writable.getWriter();
+            await writer.write(chunk);
+            writer.releaseLock();
+            return;
+          }
+
+          const protocol = await protocolSniffer(chunk);
+          let protocolHeader;
+
+          if (protocol === "Trojan") {
+            protocolHeader = parseTrojanHeader(chunk);
+          } else if (protocol === "VLESS") {
+            protocolHeader = parseVlessHeader(chunk);
+          } else if (protocol === "Shadowsocks") {
+            protocolHeader = parseShadowsocksHeader(chunk);
+          } else {
+            parseVmessHeader(chunk);
+            throw new Error("Unknown Protocol!");
+          }
+
+          addressLog = protocolHeader.addressRemote;
+          portLog = `${protocolHeader.portRemote} -> ${protocolHeader.isUDP ? "UDP" : "TCP"}`;
+
+          if (protocolHeader.hasError) {
+            throw new Error(protocolHeader.message);
+          }
+
+          if (protocolHeader.isUDP) {
+            if (protocolHeader.portRemote === 53) {
+              isDNS = true;
+            } else {
+              throw new Error("UDP only support for DNS port 53");
+            }
+          }
+
+          if (isDNS) {
+            const { write } = await handleUDPOutbound(webSocket, protocolHeader.version, log);
+            udpStreamWrite = write;
+            udpStreamWrite(protocolHeader.rawClientData);
+            return;
+          }
+
+          handleTCPOutBound(
+            remoteSocketWrapper,
+            protocolHeader.addressRemote,
+            protocolHeader.portRemote,
+            protocolHeader.rawClientData,
+            webSocket,
+            protocolHeader.version,
+            log
+          );
+        },
+        close() {
+          log(`readableWebSocketStream is close`);
+        },
+        abort(reason) {
+          log(`readableWebSocketStream is abort`, JSON.stringify(reason));
+        },
+      })
+    )
+    .catch((err) => {
+      log("readableWebSocketStream pipeTo error", err);
+    });
+
+  return new Response(null, {
+    status: 101,
+    webSocket: client,
+  });
 }
 
 async function protocolSniffer(buffer) {
   if (buffer.byteLength >= 62) {
-    const horseDelimiter = new Uint8Array(buffer.slice(56, 60));
-    if (horseDelimiter[0] === 0x0d && horseDelimiter[1] === 0x0a) {
-      if (horseDelimiter[2] === 0x01 || horseDelimiter[2] === 0x03 || horseDelimiter[2] === 0x7f) {
-        if (horseDelimiter[3] === 0x01 || horseDelimiter[3] === 0x03 || horseDelimiter[3] === 0x04) {
-          return atob(horse);
+    const trojanDelimiter = new Uint8Array(buffer.slice(56, 60));
+    if (trojanDelimiter[0] === 0x0d && trojanDelimiter[1] === 0x0a) {
+      if (trojanDelimiter[2] === 0x01 || trojanDelimiter[2] === 0x03 || trojanDelimiter[2] === 0x7f) {
+        if (trojanDelimiter[3] === 0x01 || trojanDelimiter[3] === 0x03 || trojanDelimiter[3] === 0x04) {
+          return "Trojan";
         }
       }
     }
   }
 
-  const flashDelimiter = new Uint8Array(buffer.slice(1, 17));
+  const vlessDelimiter = new Uint8Array(buffer.slice(1, 17));
   // Hanya mendukung UUID v4
-  if (arrayBufferToHex(flashDelimiter).match(/^[0-9a-f]{8}[0-9a-f]{4}4[0-9a-f]{3}[89ab][0-9a-f]{3}[0-9a-f]{12}$/i)) {
-    return atob(flash);
+  if (arrayBufferToHex(vlessDelimiter).match(/^\w{8}\w{4}4\w{3}[89ab]\w{3}\w{12}$/)) {
+    return "VLESS";
   }
 
-  return "ss"; // default
+  return "Shadowsocks"; // default
 }
 
 async function handleTCPOutBound(
@@ -1616,14 +3635,13 @@ async function handleTCPOutBound(
     const writer = tcpSocket.writable.getWriter();
     await writer.write(rawClientData);
     writer.releaseLock();
-
     return tcpSocket;
   }
 
   async function retry() {
     const tcpSocket = await connectAndWrite(
-      prxIP.split(/[:=-]/)[0] || addressRemote,
-      prxIP.split(/[:=-]/)[1] || portRemote
+      proxyIP.split(/[:=-]/)[0] || addressRemote,
+      proxyIP.split(/[:=-]/)[1] || portRemote
     );
     tcpSocket.closed
       .catch((error) => {
@@ -1638,60 +3656,6 @@ async function handleTCPOutBound(
   const tcpSocket = await connectAndWrite(addressRemote, portRemote);
 
   remoteSocketToWS(tcpSocket, webSocket, responseHeader, retry, log);
-}
-
-async function handleUDPOutbound(webSocket, responseHeader, log) {
-  let isVlessHeaderSent = false;
-  const transformStream = new TransformStream({
-    start(controller) {},
-    transform(chunk, controller) {
-      for (let index = 0; index < chunk.byteLength; ) {
-        const lengthBuffer = chunk.slice(index, index + 2);
-        const udpPakcetLength = new DataView(lengthBuffer).getUint16(0);
-        const udpData = new Uint8Array(chunk.slice(index + 2, index + 2 + udpPakcetLength));
-        index = index + 2 + udpPakcetLength;
-        controller.enqueue(udpData);
-      }
-    },
-    flush(controller) {},
-  });
-  transformStream.readable
-    .pipeTo(
-      new WritableStream({
-        async write(chunk) {
-          const resp = await fetch(DOH_URL, {
-            method: "POST",
-            headers: {
-              "content-type": "application/dns-message",
-            },
-            body: chunk,
-          });
-          const dnsQueryResult = await resp.arrayBuffer();
-          const udpSize = dnsQueryResult.byteLength;
-          const udpSizeBuffer = new Uint8Array([(udpSize >> 8) & 0xff, udpSize & 0xff]);
-          if (webSocket.readyState === WS_READY_STATE_OPEN) {
-            log(`doh success and dns message length is ${udpSize}`);
-            if (isVlessHeaderSent) {
-              webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
-            } else {
-              webSocket.send(await new Blob([responseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
-              isVlessHeaderSent = true;
-            }
-          }
-        },
-      })
-    )
-    .catch((error) => {
-      log("dns udp has error" + error);
-    });
-
-  const writer = transformStream.writable.getWriter();
-
-  return {
-    write(chunk) {
-      writer.write(chunk);
-    },
-  };
 }
 
 function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
@@ -1738,9 +3702,11 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
   return stream;
 }
 
-function readSsHeader(ssBuffer) {
-  // This is a simplification. Real SS header parsing is more complex.
-  // Assuming UUID is not part of the SS header for this implementation.
+function parseVmessHeader(vmessBuffer) {
+  // https://xtls.github.io/development/protocols/vmess.html#%E6%8C%87%E4%BB%A4%E9%83%A8%E5%88%86
+}
+
+function parseShadowsocksHeader(ssBuffer) {
   const view = new DataView(ssBuffer);
 
   const addressType = view.getUint8(0);
@@ -1770,7 +3736,7 @@ function readSsHeader(ssBuffer) {
     default:
       return {
         hasError: true,
-        message: `Invalid addressType for SS: ${addressType}`,
+        message: `Invalid addressType for Shadowsocks: ${addressType}`,
       };
   }
 
@@ -1793,33 +3759,31 @@ function readSsHeader(ssBuffer) {
     rawClientData: ssBuffer.slice(portIndex + 2),
     version: null,
     isUDP: portRemote == 53,
-    uuid: null, // SS does not carry UUID in the same way
   };
 }
 
-function readFlashHeader(buffer) {
-  const version = new Uint8Array(buffer.slice(0, 1));
-  const uuid = [...new Uint8Array(buffer.slice(1, 17))].map(b => b.toString(16).padStart(2, '0')).join('');
+function parseVlessHeader(vlessBuffer) {
+  const version = new Uint8Array(vlessBuffer.slice(0, 1));
   let isUDP = false;
 
-  const optLength = new Uint8Array(buffer.slice(17, 18))[0];
+  const optLength = new Uint8Array(vlessBuffer.slice(17, 18))[0];
 
-  const cmd = new Uint8Array(buffer.slice(18 + optLength, 18 + optLength + 1))[0];
+  const cmd = new Uint8Array(vlessBuffer.slice(18 + optLength, 18 + optLength + 1))[0];
   if (cmd === 1) {
   } else if (cmd === 2) {
     isUDP = true;
   } else {
     return {
       hasError: true,
-      message: `command ${cmd} is not supported`,
+      message: `command ${cmd} is not support, command 01-tcp,02-udp,03-mux`,
     };
   }
   const portIndex = 18 + optLength + 1;
-  const portBuffer = buffer.slice(portIndex, portIndex + 2);
+  const portBuffer = vlessBuffer.slice(portIndex, portIndex + 2);
   const portRemote = new DataView(portBuffer).getUint16(0);
 
   let addressIndex = portIndex + 2;
-  const addressBuffer = new Uint8Array(buffer.slice(addressIndex, addressIndex + 1));
+  const addressBuffer = new Uint8Array(vlessBuffer.slice(addressIndex, addressIndex + 1));
 
   const addressType = addressBuffer[0];
   let addressLength = 0;
@@ -1828,16 +3792,16 @@ function readFlashHeader(buffer) {
   switch (addressType) {
     case 1: // For IPv4
       addressLength = 4;
-      addressValue = new Uint8Array(buffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(".");
+      addressValue = new Uint8Array(vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(".");
       break;
     case 2: // For Domain
-      addressLength = new Uint8Array(buffer.slice(addressValueIndex, addressValueIndex + 1))[0];
+      addressLength = new Uint8Array(vlessBuffer.slice(addressValueIndex, addressValueIndex + 1))[0];
       addressValueIndex += 1;
-      addressValue = new TextDecoder().decode(buffer.slice(addressValueIndex, addressValueIndex + addressLength));
+      addressValue = new TextDecoder().decode(vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
       break;
     case 3: // For IPv6
       addressLength = 16;
-      const dataView = new DataView(buffer.slice(addressValueIndex, addressValueIndex + addressLength));
+      const dataView = new DataView(vlessBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
       const ipv6 = [];
       for (let i = 0; i < 8; i++) {
         ipv6.push(dataView.getUint16(i * 2).toString(16));
@@ -1863,25 +3827,23 @@ function readFlashHeader(buffer) {
     addressType: addressType,
     portRemote: portRemote,
     rawDataIndex: addressValueIndex + addressLength,
-    rawClientData: buffer.slice(addressValueIndex + addressLength),
+    rawClientData: vlessBuffer.slice(addressValueIndex + addressLength),
     version: new Uint8Array([version[0], 0]),
     isUDP: isUDP,
-    uuid: uuid.replace(/-/g, ''),
   };
 }
 
-function readHorseHeader(buffer) {
-  const uuid = [...new Uint8Array(buffer.slice(22, 38))].map(b => b.toString(16).padStart(2, '0')).join('');
-  const dataBuffer = buffer.slice(58);
-  if (dataBuffer.byteLength < 6) {
+function parseTrojanHeader(buffer) {
+  const socks5DataBuffer = buffer.slice(58);
+  if (socks5DataBuffer.byteLength < 6) {
     return {
       hasError: true,
-      message: "invalid request data",
+      message: "invalid SOCKS5 request data",
     };
   }
 
   let isUDP = false;
-  const view = new DataView(dataBuffer);
+  const view = new DataView(socks5DataBuffer);
   const cmd = view.getUint8(0);
   if (cmd == 3) {
     isUDP = true;
@@ -1896,16 +3858,20 @@ function readHorseHeader(buffer) {
   switch (addressType) {
     case 1: // For IPv4
       addressLength = 4;
-      addressValue = new Uint8Array(dataBuffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(".");
+      addressValue = new Uint8Array(socks5DataBuffer.slice(addressValueIndex, addressValueIndex + addressLength)).join(
+        "."
+      );
       break;
     case 3: // For Domain
-      addressLength = new Uint8Array(dataBuffer.slice(addressValueIndex, addressValueIndex + 1))[0];
+      addressLength = new Uint8Array(socks5DataBuffer.slice(addressValueIndex, addressValueIndex + 1))[0];
       addressValueIndex += 1;
-      addressValue = new TextDecoder().decode(dataBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
+      addressValue = new TextDecoder().decode(
+        socks5DataBuffer.slice(addressValueIndex, addressValueIndex + addressLength)
+      );
       break;
     case 4: // For IPv6
       addressLength = 16;
-      const dataView = new DataView(dataBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
+      const dataView = new DataView(socks5DataBuffer.slice(addressValueIndex, addressValueIndex + addressLength));
       const ipv6 = [];
       for (let i = 0; i < 8; i++) {
         ipv6.push(dataView.getUint16(i * 2).toString(16));
@@ -1927,35 +3893,17 @@ function readHorseHeader(buffer) {
   }
 
   const portIndex = addressValueIndex + addressLength;
-  const portBuffer = dataBuffer.slice(portIndex, portIndex + 2);
+  const portBuffer = socks5DataBuffer.slice(portIndex, portIndex + 2);
   const portRemote = new DataView(portBuffer).getUint16(0);
-  
-  let rawClientData;
-  if (isUDP) {
-      // For UDP, Trojan packet is: [DST.PORT | 2] [LENGTH | 2] [CRLF | 2] [PAYLOAD]
-      // The new handler expects a stream of [LENGTH | 2] [PAYLOAD]
-      // We need to extract the payload and prepend the length.
-      const payloadLength = new DataView(dataBuffer.slice(portIndex + 2, portIndex + 4)).getUint16(0);
-      const payload = dataBuffer.slice(portIndex + 6, portIndex + 6 + payloadLength);
-      
-      const packet = new Uint8Array(2 + payload.byteLength);
-      new DataView(packet.buffer).setUint16(0, payload.byteLength);
-      packet.set(new Uint8Array(payload), 2);
-      rawClientData = packet.buffer;
-  } else {
-    rawClientData = dataBuffer.slice(portIndex + 4);
-  }
-
   return {
     hasError: false,
     addressRemote: addressValue,
     addressType: addressType,
     portRemote: portRemote,
     rawDataIndex: portIndex + 4,
-    rawClientData: rawClientData,
+    rawClientData: socks5DataBuffer.slice(portIndex + 4),
     version: null,
     isUDP: isUDP,
-    uuid: uuid.replace(/-/g, ''),
   };
 }
 
@@ -1996,22 +3944,6 @@ async function remoteSocketToWS(remoteSocket, webSocket, responseHeader, retry, 
   }
 }
 
-function safeCloseWebSocket(socket) {
-  try {
-    if (socket.readyState === WS_READY_STATE_OPEN || socket.readyState === WS_READY_STATE_CLOSING) {
-      socket.close();
-    }
-  } catch (error) {
-    console.error("safeCloseWebSocket error", error);
-  }
-}
-
-async function checkPrxHealth(prxIP, prxPort) {
-  const req = await fetch(`${PRX_HEALTH_CHECK_API}?ip=${prxIP}:${prxPort}`);
-  return await req.json();
-}
-
-// Helpers
 function base64ToArrayBuffer(base64Str) {
   if (!base64Str) {
     return { error: null };
@@ -2030,2133 +3962,1860 @@ function arrayBufferToHex(buffer) {
   return [...new Uint8Array(buffer)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-function shuffleArray(array) {
-  let currentIndex = array.length;
-
-  // While there remain elements to shuffle...
-  while (currentIndex != 0) {
-    // Pick a remaining element...
-    let randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-
-    // And swap it with the current element.
-    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-  }
-}
-
-function reverse(s) {
-  return s.split("").reverse().join("");
-}
-
-function getFlagEmoji(isoCode) {
-  const codePoints = isoCode
-    .toUpperCase()
-    .split("")
-    .map((char) => 127397 + char.charCodeAt(0));
-  return String.fromCodePoint(...codePoints);
-}
-
-// CloudflareApi Class
-class CloudflareApi {
-  constructor() {
-    this.bearer = `Bearer ${apiKey}`;
-    this.accountID = accountID;
-    this.zoneID = zoneID;
-    this.apiEmail = apiEmail;
-    this.apiKey = apiKey;
-
-    this.headers = {
-      Authorization: this.bearer,
-      "X-Auth-Email": this.apiEmail,
-      "X-Auth-Key": this.apiKey,
-    };
-  }
-
-  async getDomainList() {
-    const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains`;
-    const res = await fetch(url, {
-      headers: {
-        ...this.headers,
-      },
-    });
-
-    if (res.status == 200) {
-      const respJson = await res.json();
-
-      return respJson.result
-        .filter((data) => data.service == serviceName)
-        .map((data) => ({ id: data.id, hostname: data.hostname }));
-    }
-
-    return [];
-  }
-
-  async registerDomain(domain) {
-    domain = domain.toLowerCase();
-    const registeredDomains = await this.getDomainList();
-
-    if (!domain.endsWith(rootDomain)) return 400;
-    if (registeredDomains.includes(domain)) return 409;
-
-    try {
-      const domainTest = await fetch(`https://${domain.replaceAll("." + APP_DOMAIN, "")}`);
-      if (domainTest.status == 530) return domainTest.status;
-
-      const badWordsListRes = await fetch(BAD_WORDS_LIST);
-      if (badWordsListRes.status == 200) {
-        const badWordsList = (await badWordsListRes.text()).split("\n");
-        for (const badWord of badWordsList) {
-          if (domain.includes(badWord.toLowerCase())) {
-            return 403;
-          }
-        }
-      } else {
-        return 403;
+async function handleUDPOutbound(webSocket, responseHeader, log) {
+  let isVlessHeaderSent = false;
+  const transformStream = new TransformStream({
+    start(controller) {},
+    transform(chunk, controller) {
+      for (let index = 0; index < chunk.byteLength; ) {
+        const lengthBuffer = chunk.slice(index, index + 2);
+        const udpPakcetLength = new DataView(lengthBuffer).getUint16(0);
+        const udpData = new Uint8Array(chunk.slice(index + 2, index + 2 + udpPakcetLength));
+        index = index + 2 + udpPakcetLength;
+        controller.enqueue(udpData);
       }
-    } catch (e) {
-      return 400;
-    }
-
-    const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains`;
-    const res = await fetch(url, {
-      method: "PUT",
-      body: JSON.stringify({
-        environment: "production",
-        hostname: domain,
-        service: serviceName,
-        zone_id: this.zoneID,
-      }),
-      headers: {
-        ...this.headers,
-      },
-    });
-
-    return res.status;
-  }
-
-  async deleteDomain(domainId) {
-    const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains/${domainId}`;
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        ...this.headers,
-      },
-    });
-
-    return res.status;
-  }
-
-  async getStats() {
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const query = `
-    query {
-      viewer {
-        accounts(filter: {accountTag: "${this.accountID}"}) {
-          httpRequests1dGroups(limit: 1, filter: {date_gt: "${yesterday}"}) {
-            sum {
-              requests
-              bytes
-            }
-          }
-        }
-      }
-    }`;
-
-    const res = await fetch("https://api.cloudflare.com/client/v4/graphql", {
-        method: 'POST',
-        headers: {
-            ...this.headers,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-    });
-
-    if (res.status === 200) {
-        const respJson = await res.json();
-        const data = respJson.data.viewer.accounts[0].httpRequests1dGroups[0].sum;
-        return {
-            requests: data.requests,
-            bandwidth: data.bytes,
-        };
-    }
-    return null;
-  }
-}
-
-
-let baseHTML = `
-<!DOCTYPE html>
-<html lang="en" id="html" class="scroll-auto scrollbar-hide dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Geo-VPN | VPN Tunnel | CloudFlare</title>
-
-    <meta name="description" content="Akun Vless Gratis. Geo-VPN offers free Vless accounts with Cloudflare and Trojan support. Secure and fast VPN tunnel services.">
-    <meta name="keywords" content="Geo-VPN, Free Vless, Vless CF, Trojan CF, Cloudflare, VPN Tunnel, Akun Vless Gratis">
-    <meta name="author" content="Geo-VPN">
-    <meta name="robots" content="index, follow, noarchive, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
-
-    <link rel="icon" href="https://geoproject.biz.id/circle-flags/bote.png">
-    <link rel="apple-touch-icon" href="https://geoproject.biz.id/circle-flags/bote.png">
-
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/lozad/dist/lozad.min.js"></script>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap');
-    </style>
-
-    <style>
-        :root {
-            --cyber-bg: #0a0a0a;
-            --cyber-primary: #00f2ff;
-            --cyber-secondary: #ff00ff;
-            --cyber-accent: #ff0066;
-            --cyber-glow: 0 0 10px var(--cyber-primary), 0 0 20px var(--cyber-primary), 0 0 30px var(--cyber-primary);
-            --cyber-glow-secondary: 0 0 10px var(--cyber-secondary), 0 0 20px var(--cyber-secondary);
-            --tw-color-accent-blue: #3b82f6;
-            --tw-color-accent-purple: #8b5cf6;
-        }
-
-        /* 1. SCROLLBAR HIDE */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        /* 2. CYBER TITLE EFFECT */
-        .cyber-title {
-            font-family: 'Orbitron', sans-serif;
-            color: transparent;
-            background: linear-gradient(45deg, var(--cyber-primary), var(--cyber-secondary), var(--cyber-accent));
-            -webkit-background-clip: text;
-            background-clip: text;
-            text-shadow: 
-                0 0 10px var(--cyber-primary),
-                0 0 20px var(--cyber-primary),
-                0 0 40px var(--cyber-secondary),
-                0 0 80px var(--cyber-secondary);
-            position: relative;
-            letter-spacing: 2px;
-        }
-
-        /* 3. PULSING GLOW EFFECT */
-        .pulse-glow {
-            animation: pulseGlow 2s ease-in-out infinite alternate;
-        }
-
-        @keyframes pulseGlow {
-            from { box-shadow: 0 0 10px var(--cyber-primary), 0 0 20px var(--cyber-primary); }
-            to { box-shadow: 0 0 20px var(--cyber-primary), 0 0 40px var(--cyber-primary), 0 0 60px var(--cyber-secondary); }
-        }
-
-        /* 4. ENHANCED LOADING SPINNER */
-        .cyber-loader {
-            position: relative;
-            width: 80px;
-            height: 80px;
-        }
-
-        .cyber-loader::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: 4px solid transparent;
-            border-top: 4px solid var(--cyber-primary);
-            border-right: 4px solid var(--cyber-secondary);
-            border-radius: 50%;
-            animation: cyberSpin 1.5s linear infinite;
-        }
-
-        .cyber-loader::after {
-            content: '';
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            width: 60px;
-            height: 60px;
-            border: 4px solid transparent;
-            border-bottom: 4px solid var(--cyber-accent);
-            border-left: 4px solid var(--cyber-primary);
-            border-radius: 50%;
-            animation: cyberSpinReverse 1s linear infinite;
-        }
-
-        @keyframes cyberSpin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes cyberSpinReverse {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(-360deg); }
-        }
-
-        /* 5. GRID BACKGROUND */
-        .cyber-grid {
-            background-image: 
-                linear-gradient(rgba(0, 242, 255, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 242, 255, 0.1) 1px, transparent 1px);
-            background-size: 50px 50px;
-        }
-
-        /* 6. STATUS INDICATORS */
-        .status-active {
-            color: #00ff88;
-            text-shadow: 0 0 10px #00ff88;
-            animation: blink 1.5s infinite;
-        }
-
-        .status-inactive {
-            color: #ff0066;
-            text-shadow: 0 0 10px #ff0066;
-        }
-
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.2; }
-        }
-        .blink-text {
-            animation: blink 1s linear infinite;
-        }
-
-        /* 7. GLASSMORPHISM EFFECT */
-        .glass-effect {
-            background-color: rgba(42, 42, 47, 0.6);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(0, 224, 183, 0.3);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .glass-effect-light {
-            background-color: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(0, 224, 183, 0.2);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-        
-        /* MODIFIKASI: GLASSMORPHISM 3D BLUR BARU */
-        .glass-3d-blur {
-            background: rgba(30, 41, 59, 0.4);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border-radius: 1.5rem;
-            box-shadow: 
-                0 15px 30px rgba(0, 0, 0, 0.6),
-                0 0 20px rgba(102, 181, 232, 0.4) inset,
-                0 0 5px rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(100, 116, 139, 0.6);
-            padding: 2rem;
-            margin-bottom: 2rem;
-            transform: perspective(1000px) translateZ(30px);
-            transition: all 0.3s ease-out;
-        }
-
-        .glass-3d-blur:hover {
-            transform: perspective(1000px) translateZ(40px);
-        }
-        
-        /* 8. FLAG SPIN ANIMATION */
-        .flag-spin {
-            animation: spin-around 4s linear infinite alternate;
-            transform-origin: center center;
-        }
-        @keyframes spin-around {
-            0% { transform: rotateY(0deg); }
-            50% { transform: rotateY(180deg); }
-            100% { transform: rotateY(0deg); }
-        }
-
-        /* 9. BUTTON STYLES */
-        .btn-gradient {
-            background: linear-gradient(to right, var(--tw-color-accent-blue), var(--tw-color-accent-purple));
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2), inset 0 -3px 5px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
-        }
-        .btn-gradient:hover:not(:disabled) {
-            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4), inset 0 1px 5px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(102, 181, 232, 0.8);
-            transform: translateY(1px);
-        }
-        .action-btn {
-            background-color: #f3f4f6;
-            color: #000000;
-            border: 1px solid #d1d5db;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: all 0.2s;
-        }
-        .dark .action-btn {
-            background-color: #1e293b;
-            color: #ffffff;
-            border: 1px solid #475569;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-        .action-btn:hover {
-            background-color: #e5e7eb;
-            color: #000000;
-        }
-        .dark .action-btn:hover {
-            background-color: #334155;
-            color: #ffffff;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 1px 5px rgba(0, 0, 0, 0.6);
-            transform: translateY(1px);
-        }
-        
-        /* 10. INPUT FIELD STYLES */
-        .input-group {
-            background-color: rgba(243, 244, 246, 0.8);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            border: 1px solid rgba(209, 213, 219, 0.5);
-            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
-        }
-        .dark .input-group {
-            background-color: rgba(30, 41, 59, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.3);
-            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
-        }
-
-        .input-dark, .input-group textarea, .input-group select {
-            background-color: #ffffff;
-            color: #1f2937;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .dark .input-dark, .dark .input-group textarea, .dark .input-group select {
-            background-color: #1f2937;
-            color: #ffffff;
-            border: 1px solid #475569;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
-        }
-        .input-dark:focus, .input-group textarea:focus, .input-group select:focus {
-            border-color: var(--tw-color-accent-blue);
-            box-shadow: 0 0 5px var(--tw-color-accent-blue);
-        }
-        .dark .input-dark:focus, .dark .input-group textarea:focus, .dark .input-group select:focus {
-            border-color: var(--tw-color-accent-blue);
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 5px var(--tw-color-accent-blue);
-        }
-
-        /* 11. TABLE STYLES (THEME-AWARE) */
-        .table-theme th {
-            background-color: rgba(255, 255, 255, 0.3);
-            color: #000000;
-            font-weight: 600;
-        }
-        .dark .table-theme th {
-            background-color: #1e293b;
-            color: #94a3b8;
-        }
-        .table-theme td {
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        .dark .table-theme td {
-            border-color: #334155;
-        }
-        .table-theme tr:nth-child(even) {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        .dark .table-theme tr:nth-child(even) {
-            background-color: #111827;
-        }
-        .table-theme tr:hover {
-            background-color: rgba(255, 255, 255, 0.3) !important;
-        }
-        .dark .table-theme tr:hover {
-            background-color: #334155 !important;
-        }
-
-        /* 12. UTILITY CLASSES */
-        .centered-heading {
-            text-align: center;
-            width: 100%;
-            font-size: 1.5rem;
-            font-weight: 800;
-            line-height: 1.2;
-            padding-bottom: 0.5rem;
-        }
-        .nav-btn-center {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            min-height: 50px;
-            padding: 0.75rem 1.5rem;
-            line-height: 1.2;
-            border-radius: 0.75rem;
-        }
-        .text-solid-white {
-            color: #ffffff;
-            text-shadow: none;
-        }
-
-        /* 13. RESULT BOXES */
-        .result-success {
-            background-color: #1f2937;
-            border: 1px solid #66b5e8;
-            color: #ffffff;
-            box-shadow: 0 0 15px rgba(102, 181, 232, 0.4);
-            transition: all 0.3s ease;
-        }
-        .result-error {
-            background-color: #1f2937;
-            border: 1px solid #a466e8;
-            color: #ffffff;
-            box-shadow: 0 0 15px rgba(164, 102, 232, 0.4);
-            transition: all 0.3s ease;
-        }
-        
-        /* 14. PAGE LOADING SPINNER */
-        #cover-spin {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.8);
-            z-index: 9999;
-            display: none;
-        }
-        .loader {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid var(--tw-color-accent-blue);
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 2s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Definisi warna dasar (untuk menghindari konflik dengan Tailwind) */
-        .text-green-600 { color: #16a34a; }
-        .text-red-600 { color: #dc2626; }
-        .text-yellow-400 { color: #facc15; }
-        .text-xs { font-size: 0.75rem; }
-        .font-normal { font-weight: 400; }
-        
-        /* 15. Gaya Teks Judul 3D Terang */
-        #runningTitle {
-            text-shadow: 
-                1px 1px 1px rgba(255, 255, 255, 0.5),
-                2px 2px 2px rgba(255, 255, 255, 0.3),
-                4px 4px 6px rgba(0, 0, 0, 0.9),
-                0 0 15px #ffffff,
-                0 0 25px #a466e8;
-        }
-        
-        /* 16. Custom style untuk gambar ikon di footer */
-        .footer-icon-img {
-            width: 1.5rem;
-            height: 1.5rem;
-            border-radius: 50%;
-            object-fit: cover;
-        }
-
-        /* 17. NAVIGATION BAR */
-        .navbarconten {
-            width: 100%;
-            overflow-x: auto;
-            margin-bottom: 0px;
-            border: 1px solid #000;
-            border-radius: 10px;
-            padding: 0px;
-            background-color: rgba(0, 0, 0, 0.82);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.6),
-                      0 0 30px rgba(0, 150, 255, 0.5);
-        }
-        .navbar {
-            position: fixed;
-            top: 60%;
-            left: -80px;
-            transform: translateY(-50%);
-            width: 80px;
-            color: white;
-            padding: 10px 0;
-            transition: left 0.3s ease-in-out;
-            z-index: 1000;
-            border-radius: 0 10px 10px 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .navbar.show {
-            left: 0;
-        }
-
-        .navbar a img {
-            width: 40px;
-        }
-        
-        .navbar a {
-            display: block;
-            color: white;
-            text-decoration: none;
-            padding: 10px 20px;
-        }
-        
-        /* Tombol Toggle */
-        .toggle-btn {
-            position: absolute;
-            top: 60%;
-            right: -30px;
-            transform: translateY(-50%);
-            border: none;
-            cursor: pointer;
-            z-index: 1001;
-            padding: 10px;
-            border-radius: 0 10px 10px 0;
-            transition: right 0.3s ease-in-out;
-        }
-
-        .toggle-btn img {
-            width: 20px;
-            height: 150px;
-        }
-
-        .navbar.show .toggle-btn {
-            right: -29px;
-        }
-
-        /* 18. RESPONSIVE MEDIA QUERIES */
-        @media (max-width: 768px) {
-            .cyber-glass { padding: 1.5rem; margin-bottom: 1.5rem; }
-            .cyber-title { font-size: 1.75rem; }
-            .cyber-table th, .cyber-table td { padding: 0.75rem; font-size: 0.8rem; }
-            .glass-3d-blur { padding: 1.5rem; margin-bottom: 1.5rem; }
-            #container-title h1 { font-size: 1.75rem; }
-            .info-container { gap: 0.5rem; }
-            .filter-container { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-            #container-pagination { transform: none; position: static; margin-top: 1.5rem; }
-            .container { padding: 1rem; }
-        }
-
-        @media (max-width: 480px) {
-            .cyber-title { font-size: 1.5rem; }
-            .cyber-glass { padding: 1rem; }
-            .filter-container { grid-template-columns: 1fr; }
-            #container-info-ip, #container-info-country, #container-info-isp,
-            #container-info-requests, #container-info-bandwidth { font-size: 0.8rem; }
-        }
-    </style>
-
-    <style>
-        /* --- Variabel Warna --- */
-        :root {
-            --cyber-primary: #00ffc8;
-            --cyber-secondary: #ff00ff;
-            --cyber-flicker-color: #ffcc00;
-        }
-
-        /* -------------------------------------- */
-        /* --- STYLE UTAMA CYBERPUNK TEXT --- */
-        /* -------------------------------------- */
-
-        .cyber-text-glitch {
-            position: relative;
-            animation: 
-                neon-flicker 1.5s infinite alternate-reverse,
-                glitch-anim-1 2s infinite linear alternate-reverse,
-                glitch-anim-2 3s infinite linear alternate-reverse;
-        }
-
-        /* Layer Glitch 1: Magenta Shadow */
-        .cyber-text-glitch::before {
-            content: attr(data-text); 
-            position: absolute;
-            top: 0;
-            left: 2px; 
-            width: 100%;
-            height: 100%;
-            color: var(--cyber-primary); 
-            text-shadow: -1px 0 var(--cyber-secondary); 
-            clip: rect(44px, 450px, 56px, 0);
-            animation: glitch-anim-1 2s infinite linear alternate-reverse; 
-        }
-
-        /* Layer Glitch 2: Cyan Shadow */
-        .cyber-text-glitch::after {
-            content: attr(data-text); 
-            position: absolute;
-            top: 0;
-            left: -2px; 
-            width: 100%;
-            height: 100%;
-            color: var(--cyber-primary); 
-            text-shadow: 1px 0 var(--cyber-secondary); 
-            clip: rect(60px, 450px, 70px, 0);
-            animation: glitch-anim-2 3s infinite linear alternate-reverse; 
-        }
-
-        /* -------------------------------------- */
-        /* --- STYLE ICON BERGERAK (MOVING ICON) --- */
-        /* -------------------------------------- */
-
-        .moving-icon {
-            display: inline-block;
-            animation: 
-                icon-spin 2s infinite linear,
-                icon-scale-pulse 1.5s infinite alternate-reverse; 
-            font-size: 1.2em; 
-            filter: drop-shadow(0 0 5px var(--cyber-flicker-color));
-        }
-
-        /* -------------------------------------- */
-        /* --- KEYFRAMES (ANIMASI) --- */
-        /* -------------------------------------- */
-
-        /* Animasi Neon Flicker & Ganti Warna */
-        @keyframes neon-flicker {
-            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
-                text-shadow: 
-                    0 0 7px var(--cyber-primary),
-                    0 0 10px var(--cyber-primary),
-                    0 0 21px var(--cyber-primary),
-                    0 0 42px var(--cyber-secondary),
-                    0 0 82px var(--cyber-secondary),
-                    0 0 92px var(--cyber-secondary);
-                color: var(--cyber-primary);
-                opacity: 1;
-            }
-            20%, 24%, 55% {
-                text-shadow: 
-                    0 0 5px var(--cyber-flicker-color),
-                    0 0 10px var(--cyber-flicker-color),
-                    0 0 15px var(--cyber-flicker-color),
-                    0 0 30px var(--cyber-primary);
-                color: var(--cyber-flicker-color);
-                opacity: 0.8;
-            }
-            22% {
-                text-shadow: none;
-                color: transparent;
-                opacity: 0.2;
-            }
-        }
-
-        /* Keyframes Ikon: Memutar (Spin) */
-        @keyframes icon-spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Keyframes Ikon: Memperbesar dan Mengecil (Scale Pulse) */
-        @keyframes icon-scale-pulse {
-            0% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.3);
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        /* Keyframes Glitch 1 */
-        @keyframes glitch-anim-1 {
-            0% { clip: rect(24px, 9999px, 32px, 0) }
-            10% { clip: rect(72px, 9999px, 86px, 0) }
-            20% { clip: rect(100px, 9999px, 120px, 0) }
-            30% { clip: rect(40px, 9999px, 55px, 0) }
-            40% { clip: rect(120px, 9999px, 130px, 0) }
-            50% { clip: rect(10px, 9999px, 20px, 0) }
-            60% { clip: rect(140px, 9999px, 150px, 0) }
-            70% { clip: rect(90px, 9999px, 100px, 0) }
-            80% { clip: rect(60px, 9999px, 75px, 0) }
-            90% { clip: rect(155px, 9999px, 165px, 0) }
-            100% { clip: rect(5px, 9999px, 15px, 0) }
-        }
-
-        /* Keyframes Glitch 2 */
-        @keyframes glitch-anim-2 {
-            0% { clip: rect(10px, 9999px, 20px, 0) }
-            15% { clip: rect(130px, 9999px, 140px, 0) }
-            30% { clip: rect(50px, 9999px, 60px, 0) }
-            45% { clip: rect(80px, 9999px, 90px, 0) }
-            60% { clip: rect(30px, 9999px, 40px, 0) }
-            75% { clip: rect(110px, 9999px, 120px, 0) }
-            90% { clip: rect(70px, 9999px, 80px, 0) }
-            100% { clip: rect(160px, 9999px, 170px, 0) }
-        }
-    </style>
-
-    <script>
-        tailwind.config = {
-            darkMode: 'selector',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Rajdhani', 'sans-serif'],
-                        display: ['Orbitron', 'sans-serif'],
-                    },
-                    colors: {
-                        'cyber-bg': '#0a0a0a',
-                        'cyber-primary': '#00f2ff',
-                        'cyber-secondary': '#ff00ff',
-                        'cyber-accent': '#ff0066',
-                    },
-                    animation: {
-                        'pulse-glow': 'pulseGlow 2s ease-in-out infinite alternate',
-                        'scanline': 'scanline 2s linear infinite',
-                    }
-                },
-            },
-        };
-    </script>
-</head>
-
-<body class="text-gray-800 dark:text-white bg-fixed transition-colors duration-300">
-    <div class="fixed inset-0 z-[-1] bg-white dark:bg-gray-900"></div>
-    <div class="fixed inset-0 z-[-1] bg-blue-200 bg-opacity-20 backdrop-blur-xl dark:hidden"></div>
-
-    <script>
-        (function() {
-            const htmlElement = document.documentElement;
-            const theme = localStorage.getItem('theme');
-
-            if (theme === 'dark' || !theme) {
-                htmlElement.classList.add('dark');
-            }
-        })();
-    </script>
-
-    <div id="loading-screen" class="fixed inset-0 z-50 flex justify-center items-center bg-cyber-bg bg-opacity-95 transition-opacity duration-500">
-        <div class="cyber-loader"></div>
-        <div class="absolute bottom-20">
-            <p class="text-cyber-primary font-display text-3xl font-bold animate-pulse cyber-text-glitch" data-text="DPR BABI">
-                DPR BABI
-                <span class="moving-icon">🐷</span>
-            </p>
-            <p class="text-cyber-primary font-display text-3xl font-bold animate-pulse cyber-text-glitch" data-text="DPR ANJING">
-                DPR ANJING
-                <span class="moving-icon">🐕</span>
-            </p>
-            <p class="text-cyber-primary font-display text-3xl font-bold animate-pulse cyber-text-glitch" data-text="BANGSAT..">
-                BANGSAT..
-                <span class="moving-icon">💩</span>
-            </p>
-        </div>
-    </div>
-
-    <div id="notification-badge" class="fixed z-50 opacity-0 transition-all ease-in-out duration-300 mt-9 mr-6 right-0 p-4 max-w-sm rounded-xl flex items-center gap-x-4 cyber-glass">
-        <div class="shrink-0 pulse-glow">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6 text-cyber-primary">
-                <path d="M5.85 3.5a.75.75 0 0 0-1.117-1 9.719 9.719 0 0 0-2.348 4.876.75.75 0 0 0 1.479.248A8.219 8.219 0 0 1 5.85 3.5ZM19.267 2.5a.75.75 0 1 0-1.118 1 8.22 8.22 0 0 1 1.987 4.124.75.75 0 0 0 1.48-.248A9.72 9.72 0 0 0 19.266 2.5Z" />
-                <path fill-rule="evenodd" d="M12 2.25A6.75 6.75 0 0 0 5.25 9v.75a8.217 8.217 0 0 1-2.119 5.52.75.75 0 0 0 .298 1.206c1.544.57 3.16.99 4.831 1.243a3.75 3.75 0 1 0 7.48 0 24.583 24.583 0 0 0 4.83-1.244.75.75 0 0 0 .298-1.205 8.217 8.217 0 0 1-2.118-5.52V9A6.75 6.75 0 0 0 12 2.25ZM9.75 18c0-.034 0-.067.002-.1a25.05 25.05 0 0 0 4.496 0l.002.1a2.25 2.25 0 1 1-4.5 0Z" clip-rule="evenodd" />
-            </svg>
-        </div>
-        <div>
-            <div class="text-md font-bold text-cyber-primary">Success</div>
-            <p class="text-sm text-gray-300">Configuration copied</p>
-        </div>
-    </div>
-
-    <div class="flex flex-col items-center">
-        <div id="container-title" class="sticky top-0 z-10 w-full max-w-7xl py-6 text-center transition-all duration-300 ease-in-out">
-            <h1 class="cyber-title text-2xl font-display uppercase tracking-wider">
-                FREE VPN CLOUDFLARE
-            </h1>
-        </div>
-        
-        <div class="container mx-auto p-4 sm:p-6 lg:p-8">
-            <div class="p-4 sm:p-6" style="box-shadow: 0 0 20px rgba(0,255,255,0.7), inset 0 0 10px rgba(0,255,255,0.3);">
-                <div class="flex flex-col items-center relative z-10">
-                    <div class="dark:glass-effect w-full mb-6 rounded-xl p-4 shadow-lg border border-cyan-400 shadow-2xl shadow-cyan-500/50">
-                        <div class="flex justify-center items-center w-full" style="box-shadow: 0 0 20px rgba(0,255,255,0.7), inset 0 0 10px rgba(0,255,255,0.3);">
-                            <div class="inline-flex items-center gap-2 text-cyber-secondary text-sm font-mono">
-                                <span class="status-active">●</span>
-                                <span>SYSTEM ONLINE</span>
-                                <span class="status-active">●</span>
-                            </div>
-                        </div>
-                        
-                        <div class="info-container flex flex-wrap items-center justify-center gap-3 text-sm font-semibold">
-                            <p id="container-info-ip" class="flex items-center gap-1 text-blue-500 dark:text-blue-300">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M5.5 13a4.5 4.5 0 011.692-3.377l1.72-1.725A4.5 4.5 0 0113 5.5V6a.5.5 0 001 0V5.5A4.5 4.5 0 009.377 2.308L7.653 4.032A4.5 4.5 0 005 8.5v.5a.5.5 0 001 0V8.5A3.5 3.5 0 017.377 5.79l.995.996a.5.5 0 00.707-.707l-.996-.995A4.5 4.5 0 008.5 2.5a.5.5 0 000-1z" />
-                                </svg>
-                                IP: <span class="font-bold text-slate-800 dark:text-white">127.0.0.1</span>
-                            </p>
-                            <p id="container-info-country" class="flex items-center gap-1 text-green-500 dark:text-green-300">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 3.126A8.024 8.024 0 0110 3a8 8 0 01.445.126l.01.004.013.006.015.008A5.96 5.96 0 0014 9a6 6 0 01-5.995 5.986L9 15a6 6 0 01-5.986-5.995l-.004-.01-.006-.013A6.024 6.024 0 013 10a8.024 8.024 0 01.126-.445l.004-.01.006-.013.008-.015A5.96 5.96 0 009 6a6 6 0 015.995 5.986L15 12a6 6 0 01-5.986 5.995l-.01-.004-.013-.006-.015-.008A6.024 6.024 0 019 18z" clip-rule="evenodd" />
-                                </svg>
-                                Country: <span class="font-bold text-slate-800 dark:text-white">Singapore</span>
-                            </p>
-                            <p id="container-info-isp" class="flex items-center gap-1 text-indigo-500 dark:text-indigo-300">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M10 3a7 7 0 00-7 7h1.5a5.5 5.5 0 1111 0h1.5a7 7 0 00-7-7z" />
-                                </svg>
-                                ISP: <span class="font-bold text-slate-800 dark:text-white">Localhost</span>
-                            </p>
-
-                        <p class="flex items-center gap-1 text-purple-500 dark:text-purple-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h14a1 1 0 001-1V4a1 1 0 00-1-1H3zm13 2H4v10h12V5z" />
-                            </svg>
-                            <span class="text-gray-600 dark:text-gray-300">Total Proxy: <strong id="total-proxy-value" class="font-semibold">0</strong></span>
-                        </p>
-                        <p class="flex items-center gap-1 text-orange-500 dark:text-orange-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M3 6a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V6zm2 2a1 1 0 00-1 1v4a1 1 0 001 1h10a1 1 0 001-1V9a1 1 0 00-1-1H5zm1 2h2v2H6v-2zm4 0h2v2h-2v-2z" clip-rule="evenodd" />
-                            </svg>
-                            <span class="text-gray-600 dark:text-gray-300">Page: <strong id="page-info-value" class="font-semibold">0/0</strong></span>
-                        </p>
-                        <p class="flex items-center gap-1 text-teal-500 dark:text-teal-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                            </svg>
-                            Time: <strong id="time-info-value" class="font-semibold text-slate-800 dark:text-white">00:00:00</strong>
-                        </p>
-                        <p id="container-info-requests" class="flex items-center gap-1 text-cyan-500 dark:text-cyan-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zm0 4a1 1 0 100 2h12a1 1 0 100-2H4z" />
-                            </svg>
-                            Daily Requests: <span class="font-bold text-slate-800 dark:text-white">...</span>
-                        </p>
-                        <p id="container-info-bandwidth" class="flex items-center gap-1 text-rose-500 dark:text-rose-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M3 10a7 7 0 019.307-6.611 1 1 0 00.658-1.888 9 9 0 10-2.583 13.562 1 1 0 10-1.414-1.414 7 7 0 013.032-10.26zM10 3a1 1 0 011 1v1a1 1 0 11-2 0V4a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
-                            </svg>
-                            Daily Bandwidth: <span class="font-bold text-slate-800 dark:text-white">...</span>
-                        </p>
-                    </div>
-                    <div class="mt-4 flex flex-col gap-2">
-                        <div class="flex gap-2">
-                            <input type="text" id="search-bar" placeholder="Search by IP, Port, ISP, or Country..." class="w-full px-2 py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 input-dark text-base">
-                            <button onclick="searchProxy()" class="px-6 py-1 text-white rounded-lg disabled:opacity-50 text-base font-semibold btn-gradient hover:opacity-80 transition-opacity">Search</button>
-                        </div>
-                    </div>
-                </div>
-
-            <div class="filter-container w-full max-w-5xl mb-6 p-6 bg-white/30 dark:bg-gray-800 rounded-xl shadow-xl grid grid-cols-2 md:grid-cols-4 gap-4 mx-auto border border-cyan-400 shadow-2xl shadow-cyan-500/50" style="box-shadow: 0 0 20px rgba(0,255,255,0.7), inset 0 0 10px rgba(0,255,255,0.3);">
-                PLACEHOLDER_PROTOCOL_DROPDOWN
-                PLACEHOLDER_COUNTRY_DROPDOWN
-                PLACEHOLDER_HOST_DROPDOWN
-                PLACEHOLDER_PORT_DROPDOWN
-            </div>
-
-            <div class="flex flex-col md:flex-row gap-4 w-full max-w-7xl justify-center mx-auto border border-cyan-400 shadow-2xl shadow-cyan-500/50" style="box-shadow: 0 0 20px rgba(0,255,255,0.7), inset 0 0 10px rgba(0,255,255,0.3);">
-                PLACEHOLDER_PROXY_GROUP
-            
-
-            <nav id="container-pagination" class="w-full max-w-7xl mt-8 sticky bottom-2 z-20 transition-transform -translate-y-6 flex flex-col items-center mx-auto">
-                <ul class="flex justify-center space-x-2">
-                    PLACEHOLDER_PAGE_BUTTON
-                </ul>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-4">PLACEHOLDER_PAGINATION_INFO</p>
-            </nav>
-            <div class="mt-3"></div>
-            </div>
-            
-            <div class="mt-2"></div>
-            <div class="flex flex-col md:flex-row gap-4 w-full max-w-7xl justify-center mx-auto border border-cyan-400 shadow-2xl shadow-cyan-500/50" style="box-shadow: 0 0 20px rgba(0,255,255,0.7), inset 0 0 10px rgba(0,255,255,0.3);">
-            <div class="w-full p-4 sm:p-6 bg-white/30 dark:bg-gray-800 rounded-xl shadow-lg">
-        
-        <h2 class="text-2xl font-bold text-center text-gray-900 dark:text-white mb-4">List Create Accounts</h2>
-        
-        <div id="created-accounts-list" class="overflow-x-auto">
-        </div>
-        
-        <div id="created-accounts-pagination" class="flex justify-center space-x-2 mt-4">
-        </div>
-        
-        
-    </div>
-</div>
-        </div>
-    </div>
-
-    <div id="container-window" class="hidden">
-        <div class="fixed z-20 top-0 inset-0 w-full h-full bg-gray-900/80 backdrop-blur-sm flex justify-center items-center animate-fade-in">
-            <p id="container-window-info" class="text-center w-full h-full top-1/4 absolute text-white animate-pulse"></p>
-        </div>
-
-        <div id="output-window" class="fixed z-30 inset-0 flex justify-center items-center p-2 hidden">
-            <div class="w-full max-w-xs flex flex-col gap-2 p-4 text-center rounded-xl backdrop-blur-md bg-blue-900/40 border border-sky-700 shadow-lg animate-zoom-in">
-
-                <div class="flex flex-col items-center gap-1 mb-1">
-                    <h4 class="text-xl font-bold text-white mt-1">Pilih Format</h4>
-                </div>
-
-                <textarea id="config-preview" class="w-full h-32 p-2 rounded-md bg-gray-800 text-white text-xs" readonly></textarea>
-
-                <div class="grid grid-cols-2 gap-1">
-                    <button onclick="copyToClipboardAsTarget('clash')" class="p-1.5 rounded-md bg-sky-500 hover:bg-sky-600 text-xs font-semibold text-white flex flex-row justify-center items-center transition-transform transform hover:scale-105 shadow-sm btn-gradient hover:opacity-80 transition-opacity">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" fill="currentColor" class="size-5 mr-1"><path d="M479.9 32.1C479.9 14.46 465.4 0 448 0H192c-17.47 0-32.22 14.46-31.99 31.99L160 384c0 17.46 14.46 32 32 32h128l-32.99 95.82c-4.141 12.19 2.594 25.75 14.78 29.89C304.8 512.9 308.8 512 312.4 512c8.203 0 16.28-4.484 20.78-12.14l128-224C474.7 269.8 480 263.2 480 256v-224C480 29.8 479.9 32.1 479.9 32.1zM384 256L272 448l64.01-192.1c.1406-.4375 .2812-.875 .4375-1.312L384 256z"/></svg>
-                        Clash
-                    </button>
-                    <button onclick="copyToClipboardAsTarget('sfa')" class="p-1.5 rounded-md bg-sky-500 hover:bg-sky-600 text-xs font-semibold text-white flex flex-row justify-center items-center transition-transform transform hover:scale-105 shadow-sm btn-gradient hover:opacity-80 transition-opacity">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor" class="size-5 mr-1"><path d="M576 128c0-35.3-28.7-64-64-64h-38.3c-1.6 4.6-3.7 9-6.4 13.1l-10.4 15.6c-20.7 31.1-55.1 52.4-94.8 55.9c-29.5 2.6-58.8-3.4-86.3-17.8c-23.7-12.2-46.3-25.9-63.5-39.7c-5.9-4.7-12.8-8-20.3-9.9L160.8 64H112C76.75 64 48 92.75 48 128c0 35.25 28.75 64 64 64H172.5c20.3-10.8 42.6-17.7 65.5-20.5c10.5-1.2 21.1-1.7 31.8-1.7c-11 5.9-21.4 13.5-30.8 22.8c-20.6 20.5-35.3 45.4-42.5 73.6c-1.3 5.3-2 10.9-2 16.6c0 10.6 2 20.9 6.2 30.6c3.2 7.6 7.6 15 13 22.1c25.4 33.3 59 55 96.6 63.8c-1.6 2.1-3.2 4.1-4.9 6.1c-14.7 17.5-30.7 33.2-47.5 46.9c-7.9 6.5-16.1 12.3-24.6 17.2c-29.1 16.9-59.5 28.7-90.9 35.3c-11.6 2.5-23.3 3.8-35 3.8h-48.4c-12.3 0-24.2-4.1-34.6-11.5L5.6 422.3c-13.8-10.1-2.9-31.2 14.8-28.7c18.5 2.6 37.1 3.9 55.7 3.9c25.3 0 50.8-3.4 75.8-10.3c15.2-4.3 30.1-9.9 44.5-16.9c13.7-6.7 26.9-14.7 39.5-24.1c11.9-8.9 23.3-18.7 34.3-29.5c14.7-14.6 27.6-30.6 38.3-48.4c7-11.8 12.8-24.5 17.1-37.6c1.6-4.9 2.8-10 3.8-15c1-5.1 1.5-10.3 1.5-15.6c0-14.7-2.9-29.3-8.6-43.2c-5.8-14.2-13.8-27.7-23.8-40.2c-1.4-1.7-2.9-3.4-4.5-5.1c4.5-3.3 9.4-5.6 14.6-6.8c12.2-2.9 24.6-4.3 37.1-4.3c27.5 0 54.9 5.8 80.8 17.1c26.1 11.4 49.6 27.9 69.8 49.3c15.9 17 28.3 36.3 37.4 57.6c9.1 21.2 14.2 44.1 15.1 67.2c1.7 44.5-13.1 87.8-42.5 122.9c-29.4 35.1-69.6 57.9-114.7 63.8c-1.7 .2-3.4 .3-5.1 .5c-1.3 .2-2.5 .5-3.8 .6l-149.3 46.6c-13.3 4.1-27.1 6.1-40.9 6.1c-17.7 0-35.3-2.5-52.5-7.5l-63.5-18.4c-12.7-3.7-25.5-5.5-38.3-5.5c-35.3 0-64 28.7-64 64s28.7 64 64 64H112c35.25 0 64-28.75 64-64V448h145c11.3 0 22.6-1.5 33.9-4.5c44.8-11.9 84.1-39.2 114.6-77.9c30.3-38.6 47.9-86.8 48.9-136.5c1.4-71.9-28.7-142.1-85-189.6c-1.1-1-2.2-2.1-3.4-3.1c-14.1-12.3-30.8-22.3-49.3-29.5c-1.6-.6-3.1-1.3-4.7-1.9c-1.7-.6-3.4-1.1-5.1-1.5z"/></svg>
-                        SFA
-                    </button>
-                    <button onclick="copyToClipboardAsTarget('bfr')" class="p-1.5 rounded-md bg-sky-500 hover:bg-sky-600 text-xs font-semibold text-white flex flex-row justify-center items-center transition-transform transform hover:scale-105 shadow-sm btn-gradient hover:opacity-80 transition-opacity">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" class="size-5 mr-1"><path d="M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm288 32c0-11.5 6.1-22 16-27.6l80-45.7c10.8-6.2 24.3-3.4 31.5 6.9s3.2 23.4-7.5 29.7l-80 45.7c-2.4 1.4-5 2.2-7.8 2.2s-5.4-.8-7.8-2.2l-128-73.1c-10.8-6.2-13.6-19.7-7.5-30.5s19.7-13.6 30.5-7.5L256 226.4V64c0-17.7 14.3-32 32-32s32 14.3 32 32v240c0 17.7-14.3 32-32 32s-32-14.3-32-32v-44.5l-80 45.7c-10.8 6.2-13.6-19.7-7.5 30.5s19.7 13.6 30.5 7.5L256 280.9V448c0 17.7-14.3 32-32 32s-32-14.3-32-32V208c0-11.5-6.1-22-16-27.6L96 134.7c-10.8-6.2-24.3-3.4-31.5 6.9s-3.2 23.4 7.5 29.7l80 45.7c2.4 1.4 5 2.2 7.8 2.2s5.4-.8 7.8-2.2l128-73.1c10.8-6.2 13.6-19.7 7.5-30.5s-19.7-13.6-30.5-7.5L256 167.1V288z"/></svg>
-                        BFR
-                    </button>
-                    <button onclick="copyToClipboardAsRaw()" class="p-1.5 rounded-md bg-gray-400 hover:bg-gray-500 text-xs font-semibold text-white flex flex-row justify-center items-center transition-transform transform hover:scale-105 shadow-sm btn-gradient hover:opacity-80 transition-opacity">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor" class="size-5 mr-1"><path d="M471.6 31.84c-3.641-4.22-8.527-6.552-13.69-6.552h-384c-5.164 0-10.05 2.332-13.69 6.552c-3.641 4.22-5.11 9.771-4.264 15.22l23.11 150.9C69.45 204.4 74.52 208 80 208h416c5.473 0 10.55-3.606 11.85-8.001l23.11-150.9C524.8 41.61 523.3 36.06 519.6 31.84zM240 336c0-8.836 7.164-16 16-16h64c8.836 0 16 7.164 16 16v160c0 8.836-7.164 16-16 16h-64c-8.836 0-16-7.164-16-16V336zM320 224c-8.836 0-16-7.164-16-16s7.164-16 16-16h64c8.836 0 16 7.164 16 16s-7.164 16-16 16h-64zM224 224h-64c-8.836 0-16-7.164-16-16s7.164-16 16-16h64c8.836 0 16 7.164 16 16S232.8 224 224 224zM416 336c0-8.836 7.164-16 16-16h64c8.836 0 16 7.164 16 16v160c0 8.836-7.164 16-16 16h-64c-8.836 0-16-7.164-16-16V336zM160 336c0-8.836 7.164-16 16-16h64c8.836 0 16 7.164 16 16v160c0 8.836-7.164 16-16 16h-64c-8.836 0-16-7.164-16-16V336z"/></svg>
-                        Raw
-                    </button>
-                </div>
-
-                <div class="flex justify-center">
-                    <button onclick="toggleOutputWindow()" class="mt-1 p-3 rounded-lg bg-red-500 hover:bg-red-600 text-xs text-white font-semibold transition-colors duration-300 flex items-center justify-center gap-1 btn-gradient hover:opacity-80 transition-opacity">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" fill="currentColor" class="size-3">
-                            <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-                        </svg>
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="wildcards-window" class="fixed hidden z-30 top-0 right-0 w-full h-full flex justify-center items-center">
-        <div class="fixed inset-0 bg-gray-900/80 backdrop-blur-sm"></div> 
-        
-        <div class="z-40 w-[75%] max-w-md h-auto flex flex-col gap-2 p-4 rounded-lg bg-blue-500 bg-opacity-20 backdrop-blur-md border border-blue-300">
-            <div class="flex w-full h-full gap-2 justify-between">
-                <input id="new-domain-input" type="text" placeholder="Input wildcard" class="w-full h-full px-4 py-1 rounded-md focus:outline-0 bg-gray-700 text-white input-dark text-base focus:ring-2"/>
-                <button onclick="registerDomain()" class="p-2 rounded-full bg-blue-600 hover:bg-blue-700 flex justify-center items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
-                        <path fill-rule="evenodd" d="M16.72 7.72a.75.75 0 0 1 1.06 0l3.75 3.75a.75.75 0 0 1 0 1.06l-3.75 3.75a.75.75 0 1 1-1.06-1.06l2.47-2.47H3a.75.75 0 0 1 0-1.5h16.19l-2.47-2.47a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div id="container-domains" class="w-full h-32 rounded-md flex flex-col gap-1 overflow-y-scroll scrollbar-hide p-2 bg-gray-900 input-dark text-base focus:ring-2"></div>
-
-            <div class="flex w-full h-full gap-2 justify-between">
-                <input id="delete-domain-input" type="number" placeholder="Input Nomor" class="w-full h-full px-4 py-1 rounded-md focus:outline-0 bg-gray-700 text-white input-dark text-base focus:ring-2"/>
-                <button onclick="deleteDomainByNumber()" class="p-2 rounded-full bg-red-600 hover:bg-red-700 flex justify-center items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
-                        <path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            </div>
-
-            <button onclick="toggleWildcardsWindow()" class="mt-1 p-3 rounded-lg bg-red-500 hover:bg-red-600 text-xs text-white font-semibold transition-colors duration-300 flex items-center justify-center gap-1 btn-gradient hover:opacity-80 transition-opacity">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clip-rule="evenodd"/>
-                </svg>
-                Close
-            </button>
-        </div>
-    </div>
-
-
-    <footer>
-        <div class="fixed top-16 right-4 flex flex-col items-end gap-3 z-50">
-            <button onclick="toggleDropdown()" class="fixed bottom-12 right-6 z-50 transition-all rounded-full block text-white shadow-xl transform hover:scale-110 p-1 bg-gradient-to-br from-blue-500 to-blue-800 hover:from-blue-600 hover:to-blue-900">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-8 text-white">
-                    <path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v6.75h6.75a.75.75 0 0 1 0 1.5h-6.75v6.75a.75.75 0 0 1-1.5 0v-6.75h-6.75a.75.75 0 0 1 0-1.5h6.75V3a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" />
-                </svg>
-            </button>
-
-            <div id="dropdown-menu" class="hidden flex flex-col gap-3">
-                <a href="/kuota">
-                    <button class="bg-teal-500 hover:bg-teal-600 rounded-full border-2 border-gray-900 p-2 block transition-colors duration-200" title="Cek Kuota">
-                        <img src="https://raw.githubusercontent.com/jaka9m/vless/refs/heads/main/sidompul.jpg" alt="Cek Kuota Icon" class="footer-icon-img">
-                    </button>
-                </a>
-                <a href="PLACEHOLDER_DONATE_LINK" target="_blank">
-                    <button class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full border-2 border-gray-900 p-2 block transition-colors duration-200">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
-                            <path d="M10.464 8.746c.227-.18.497-.311.786-.394v2.795a2.252 2.252 0 0 1-.786-.393c-.394-.313-.546-.681-.546-1.004 0-.323.152-.691.546-1.004ZM12.75 15.662v-2.824c.347.085.664.228.921.421.427.32.579.686.579.991 0 .305-.152.671-.579.991a2.534 2.534 0 0 1-.921.42Z" />
-                            <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 6a.75.75 0 0 0-1.5 0v.816a3.836 3.836 0 0 0-1.72.756c-.712.566-1.112 1.35-1.112 2.178 0 .829.4 1.612 1.113 2.178.502.4 1.102.647 1.719.756v2.978a2.536 2.536 0 0 1-.921-.421l-.879-.66a.75.75 0 0 0-.9 1.2l.879.66c.533.4 1.169.645 1.821.75V18a.75.75 0 0 0 1.5 0v-.81a4.124 4.124 0 0 0 1.821-.749c.745-.559 1.179-1.344 1.179-2.191 0-.847-.434-1.632-1.179-2.191a4.122 4.122 0 0 0-1.821-.75V8.354c.29.082.559.213.786.393l.415.33a.75.75 0 0 0 .933-1.175l-.415-.33a3.836 3.836 0 0 0-1.719-.755V6Z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </a>
-
-                PLACEHOLDER_WHATSAPP_BUTTON
-                PLACEHOLDER_TELEGRAM_BUTTON
-
-                <button onclick="toggleWildcardsWindow()" class="bg-indigo-500 hover:bg-indigo-600 rounded-full border-2 border-gray-900 p-2 transition-colors duration-200" title="Wildcard Domains">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
-                    </svg>
-                </button>
-
-                <button onclick="toggleDarkMode()" class="bg-amber-500 hover:bg-amber-600 rounded-full border-2 border-gray-900 p-2 transition-colors duration-200" title="Toggle Dark Mode">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-    </footer>
-
-    <div class="navbar" id="navbar">
-        <div class="toggle-btn" id="menu-btn" onclick="toggleNavbar()">
-            <img src="https://geoproject.biz.id/social/buka.png" alt="Toggle Menu">
-        </div>
-        <div class="navbarconten text-center">
-            <span>
-                <a href="/linksub" target="_self" rel="noopener noreferrer">
-                    <img src="https://geoproject.biz.id/social/linksub.png" alt="menu" width="40" class="mt-1">
-                </a>
-            </span>
-
-            <span>
-                <a href="/kuota">
-                    <button class="bg-teal-500 hover:bg-teal-600 rounded-full border-1 border-gray-900 p-2 block transition-colors duration-200" title="Cek Kuota">
-                        <img src="https://raw.githubusercontent.com/jaka9m/vless/refs/heads/main/sidompul.jpg" alt="Cek Kuota Icon" class="footer-icon-img">
-                    </button>
-                </a>
-            </span>
-
-            <span>
-                <a href="https://t.me/VLTRSSbot" target="_blank" rel="noopener noreferrer">
-                    <img src="https://geoproject.biz.id/social/bot.png" alt="menu" width="40" class="mt-1">
-                </a>
-            </span>
-
-            <span>
-                <a href="/sub" target="_self" rel="noopener noreferrer">
-                    <img src="https://geoproject.biz.id/social/home.png" alt="menu" width="40" class="mt-1">
-                </a>
-            </span>
-        </div>
-    </div>
-
-<script>
-    function toggleNavbar() {
-        const navbar = document.getElementById("navbar");
-        const menuBtn = document.getElementById("menu-btn").querySelector('img');
-
-        if (navbar.classList.contains("show")) {
-            navbar.classList.remove("show");
-            menuBtn.src = "https://geoproject.biz.id/social/buka.png";
-        } else {
-            navbar.classList.add("show");
-            menuBtn.src = "https://geoproject.biz.id/social/tutup.png";
-        }
-    }
-</script>
-<script>
-    function toggleDropdown() {
-        const dropdownMenu = document.getElementById('dropdown-menu');
-        dropdownMenu.classList.toggle('hidden');
-    }
-</script>
-
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-    const runningTitle = document.getElementById('runningTitle');
-    const container = runningTitle.parentElement;
-    let position = -runningTitle.offsetWidth; // Mulai dari luar kiri
-    const speed = 1.5; // Kecepatan pergerakan
-
-    function animateTitle() {
-        position += speed;
-
-        // Jika teks sudah melewati container, kembalikan ke posisi awal
-        if (position > container.offsetWidth) {
-            position = -runningTitle.offsetWidth;
-        }
-
-        // PERBAIKAN: Menggabungkan string dan variabel dengan tanda '+'
-        runningTitle.style.transform = 'translateX(' + position + 'px)';
-
-        requestAnimationFrame(animateTitle);
-    }
-
-    animateTitle();
-});
-</script>
-
-
-     <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const loadingScreen = document.getElementById('loading-screen');
-    if (loadingScreen) {
-      // Tunggu 5 detik sebelum memulai transisi
-      setTimeout(() => {
-        // Atur opacity menjadi 0 untuk memulai efek fade out
-        loadingScreen.style.opacity = '0';
-        
-        // Setelah efek fade out selesai (500ms), sembunyikan elemen
-        setTimeout(() => {
-          loadingScreen.style.display = 'none';
-        }, 500); // Durasi ini harus sama dengan durasi transisi di CSS (duration-500)
-      }, 1000); // <-- Ini adalah jeda 5 detik
-    }
+    },
+    flush(controller) {},
   });
-    
-      // Shared
-      const rootDomain = "PLACEHOLDER_ROOT_DOMAIN";
-      const notification = document.getElementById("notification-badge");
-      const windowContainer = document.getElementById("container-window");
-      const windowInfoContainer = document.getElementById("container-window-info");
-
-
-      // Switches
-      let isDomainListFetched = false;
-
-      // Local variable
-      let rawConfig = "";
-      let wildcardDomains = [];
-
-      function getDomainList() {
-        if (isDomainListFetched) return;
-        isDomainListFetched = true;
-
-        windowInfoContainer.innerText = "Fetching data...";
-
-        const url = "https://" + rootDomain + "/api/v1/domains/get";
-        fetch(url).then(async (res) => {
-          const domainListContainer = document.getElementById("container-domains");
-          domainListContainer.innerHTML = "";
-
-          if (res.status == 200) {
-            windowInfoContainer.innerText = "Done!";
-            const respJson = await res.json();
-            wildcardDomains = respJson; // Simpan daftar domain
-            respJson.forEach((domain, index) => {
-              const domainContainer = document.createElement("div");
-              domainContainer.className = "flex items-center justify-between w-full rounded-md p-2 text-white";
-
-              const domainText = document.createElement("span");
-              domainText.innerText = (index + 1) + ". " + domain.hostname;
-              domainContainer.appendChild(domainText);
-
-              domainListContainer.appendChild(domainContainer);
-            });
-          } else {
-            windowInfoContainer.innerText = "Failed!";
-          }
-        });
-      }
-
-      function deleteDomainByNumber() {
-        const inputElement = document.getElementById("delete-domain-input");
-        const number = parseInt(inputElement.value, 10);
-
-        if (isNaN(number) || number < 1 || number > wildcardDomains.length) {
-          Swal.fire({
-            title: 'Error',
-            text: 'Masukkan nomor urut yang valid.',
-            icon: 'error',
-            width: '300px',
-            timer: 1500,
-            showConfirmButton: false
+  transformStream.readable
+    .pipeTo(
+      new WritableStream({
+        async write(chunk) {
+          const resp = await fetch("https://1.1.1.1/dns-query", {
+            method: "POST",
+            headers: {
+              "content-type": "application/dns-message",
+            },
+            body: chunk,
           });
-          return;
-        }
-
-        const domainToDelete = wildcardDomains[number - 1];
-        deleteDomain(domainToDelete.id, domainToDelete.hostname);
-        inputElement.value = "";
-      }
-
-      function deleteDomain(domainId, domainName) {
-        Swal.fire({
-          title: 'Masukkan Password',
-          text: "Untuk menghapus domain: " + domainName,
-          input: 'password',
-          inputPlaceholder: 'Password...',
-          inputAttributes: {
-            autocapitalize: 'off'
-          },
-          showCancelButton: true,
-          confirmButtonText: 'Hapus',
-          cancelButtonText: 'Batal',
-          width: '300px',
-          showLoaderOnConfirm: true,
-          preConfirm: (password) => {
-            if (!password) {
-              Swal.showValidationMessage('Password tidak boleh kosong');
-              return false;
-            }
-            const url = "https://" + rootDomain + "/api/v1/domains/delete?id=" + domainId + "&password=" + encodeURIComponent(password);
-            return fetch(url, { method: 'DELETE' })
-              .then(response => {
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error("Password salah!");
-                    }
-                    throw new Error("Gagal! Status: " + response.status);
-                }
-                return response.json().catch(() => ({}));
-              })
-              .catch(error => {
-                Swal.showValidationMessage(error.message);
-                return false;
-              });
-          },
-          allowOutsideClick: () => !Swal.isLoading()
-        }).then((result) => {
-          if (result.isConfirmed) {
-             Swal.fire({
-                title: 'Berhasil!',
-                text: 'Domain telah dihapus.',
-                icon: 'success',
-                width: '300px',
-                timer: 1500,
-                showConfirmButton: false
-             });
-            isDomainListFetched = false;
-            getDomainList();
-          }
-        });
-      }
-
-      function registerDomain() {
-        const domainInputElement = document.getElementById("new-domain-input");
-        const rawDomain = domainInputElement.value.toLowerCase();
-        const domain = domainInputElement.value + "." + rootDomain;
-
-        if (!rawDomain.match(/\\w+\\.\\w+$/) || rawDomain.endsWith(rootDomain)) {
-          windowInfoContainer.innerText = "Invalid URL!";
-          return;
-        }
-
-        windowInfoContainer.innerText = "Pushing request...";
-
-        const url = "https://" + rootDomain + "/api/v1/domains/put?domain=" + domain;
-        const res = fetch(url).then((res) => {
-          if (res.status == 200) {
-            windowInfoContainer.innerText = "Done!";
-            domainInputElement.value = "";
-            isDomainListFetched = false;
-            getDomainList();
-          } else {
-            if (res.status == 409) {
-              windowInfoContainer.innerText = "Domain exists!";
+          const dnsQueryResult = await resp.arrayBuffer();
+          const udpSize = dnsQueryResult.byteLength;
+          const udpSizeBuffer = new Uint8Array([(udpSize >> 8) & 0xff, udpSize & 0xff]);
+          if (webSocket.readyState === WS_READY_STATE_OPEN) {
+            log(`doh success and dns message length is ${udpSize}`);
+            if (isVlessHeaderSent) {
+              webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
             } else {
-              windowInfoContainer.innerText = "Error " + res.status;
+              webSocket.send(await new Blob([responseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
+              isVlessHeaderSent = true;
             }
           }
-        });
-      }
-
-      function showOutputWindowAndCopy(text) {
-        toggleOutputWindow();
-        rawConfig = text;
-        const previewElement = document.getElementById('config-preview');
-        if (previewElement) {
-            previewElement.value = rawConfig;
-        }
-      }
-
-      function promptForRemarkAndCopy(proxyConfigs) {
-        Swal.fire({
-            title: 'Masukkan Nama Remarks',
-            input: 'text',
-            inputPlaceholder: 'Contoh: DPR_BABI',
-            showCancelButton: true,
-            confirmButtonText: 'Lanjutkan',
-            cancelButtonText: 'Batal',
-            inputValidator: (value) => {
-                if (!value) {
-                    return 'Nama remarks tidak boleh kosong!'
-                }
-            }
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const remark = result.value;
-                const configs = proxyConfigs.split('\\n');
-                let uuid = null;
-                let protocol = '';
-
-                // Determine protocol from the first config
-                if (configs[0]) {
-                    try {
-                        let url = new URL(configs[0]);
-                        protocol = url.protocol.replace(':', '');
-                    } catch (e) {
-                        if (configs[0].includes('#')) {
-                           protocol = 'ss';
-                        }
-                    }
-                }
-
-                if (protocol) {
-                    uuid = await saveCreatedAccount(remark, protocol);
-                }
-
-                if (!uuid) {
-                    Swal.fire('Error', 'Could not create or retrieve account UUID.', 'error');
-                    return;
-                }
-
-                const updatedConfigs = configs.map(config => {
-                    if (config.trim() === '') return '';
-                    let newConfig = config;
-                    try {
-                        let url = new URL(config);
-                        url.username = uuid;
-                        if (url.protocol.startsWith('ss')) {
-                            url.username = btoa('none:' + uuid);
-                        }
-                        let hashParts = url.hash.split(' ');
-                        hashParts.pop();
-                        hashParts.push('[' + remark + ']');
-                        url.hash = hashParts.join(' ');
-                        newConfig = url.toString();
-                    } catch (e) {
-                        if (config.includes('#')) {
-                           const parts = config.split('#');
-                           let hashParts = parts[1].split(' ');
-                           hashParts.pop();
-                           hashParts.push('[' + remark + ']');
-                           // SS config structure might need adjustment here if UUID is part of the user info
-                           newConfig = parts[0] + '#' + hashParts.join(' ');
-                        }
-                    }
-                    return newConfig;
-                }).join('\\n');
-
-                showOutputWindowAndCopy(updatedConfigs);
-                
-                displayCreatedAccounts(1);
-            }
-        });
-      }
-
-    function generateAccountPaginationHTML(currentPage, totalPages) {
-    if (totalPages <= 1) return '';
-
-    let html = '<div class="flex justify-center items-center space-x-2 flex-wrap">';
-    const pageNumbers = getPaginationWithEllipsis(currentPage, totalPages);
-
-    // Tombol Previous (◀️)
-    const prevDisabled = currentPage === 1;
-    html += '<button onclick="navigateToAccountPage(' + (currentPage - 1) + ')" class="px-2 py-1 rounded-lg btn-gradient ' + (prevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80') + '" ' + (prevDisabled ? 'disabled' : '') + '>◀️</button>';
-
-    // Tombol Angka Halaman
-    pageNumbers.forEach(num => {
-        if (num === '...') {
-            html += '<span class="px-2 py-1">...</span>';
-        } else {
-            const isActive = num === currentPage;
-            html += '<button onclick="navigateToAccountPage(' + num + ')" class="px-2 py-1 rounded-lg btn-gradient ' + (isActive ? 'bg-blue-600 font-bold' : 'hover:opacity-80') + '">' + num + '</button>';
-        }
+        },
+      })
+    )
+    .catch((error) => {
+      log("dns udp has error" + error);
     });
 
-    // Tombol Next (▶️)
-    const nextDisabled = currentPage === totalPages;
-    html += '<button onclick="navigateToAccountPage(' + (currentPage + 1) + ')" class="px-2 py-1 rounded-lg btn-gradient ' + (nextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80') + '" ' + (nextDisabled ? 'disabled' : '') + '>▶️</button>';
+  const writer = transformStream.writable.getWriter();
 
-    html += '</div>';
-    return html;
+  return {
+    write(chunk) {
+      writer.write(chunk);
+    },
+  };
 }
 
-
-function getPaginationWithEllipsis(currentPage, totalPages) {
-    // Jika total halaman kurang dari atau sama dengan 5, tampilkan semua halaman
-    if (totalPages <= 5) {
-        return Array.from({
-            length: totalPages
-        }, (_, i) => i + 1);
+function safeCloseWebSocket(socket) {
+  try {
+    if (socket.readyState === WS_READY_STATE_OPEN || socket.readyState === WS_READY_STATE_CLOSING) {
+      socket.close();
     }
-
-    // Kasus ketika halaman saat ini berada di dekat awal
-    if (currentPage <= 3) {
-        return [1, 2, 3, '...', totalPages];
-    }
-
-    // Kasus ketika halaman saat ini berada di dekat akhir
-    if (currentPage >= totalPages - 2) {
-        return [1, '...', totalPages - 2, totalPages - 1, totalPages];
-    }
-
-    // Kasus ketika halaman saat ini berada di tengah
-    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+  } catch (error) {
+    console.error("safeCloseWebSocket error", error);
+  }
 }
-
-    async function saveCreatedAccount(name, protocol) {
-        const response = await fetch('/api/v1/accounts', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                name,
-                protocol
-            }),
-        });
-        const data = await response.json();
-        return data.uuid;
-    }
-
-    async function displayCreatedAccounts(page = 1) {
-        const ACCOUNTS_PER_PAGE = 10;
-        const listContainer = document.getElementById('created-accounts-list');
-        const paginationContainer = document.getElementById('created-accounts-pagination');
-        
-        listContainer.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400">Loading...</p>';
-        if (paginationContainer) paginationContainer.innerHTML = '';
-
-        const response = await fetch('/api/v1/accounts');
-        const accounts = await response.json();
-
-        if (accounts.length === 0) {
-            listContainer.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400">Belum ada akun yang dibuat.</p>';
-            return;
-        }
-
-        // Pagination logic
-        const totalAccounts = accounts.length;
-        const totalPages = Math.ceil(totalAccounts / ACCOUNTS_PER_PAGE);
-        const startIndex = (page - 1) * ACCOUNTS_PER_PAGE;
-        const paginatedAccounts = accounts.slice(startIndex, startIndex + ACCOUNTS_PER_PAGE);
-
-        // Build table
-        let tableHTML = '<div class="bg-white dark:bg-gray-800/50 rounded-lg shadow-xl p-4">';
-        tableHTML += '<div class="overflow-x-auto">';
-        tableHTML += '<table class="min-w-full table-theme">';
-        tableHTML += '<thead><tr>';
-        
-        tableHTML += '<th class="px-4 py-1 text-center text-sm">NO.</th>';
-        tableHTML += '<th class="px-4 py-1 text-center text-sm">REMARKS</th>';
-        tableHTML += '<th class="px-4 py-1 text-center text-sm">PROTOCOL</th>';
-        tableHTML += '<th class="px-4 py-1 text-center text-sm">ACTION</th>';
-        tableHTML += '</tr></thead><tbody>';
-
-        paginatedAccounts.forEach((account, index) => {
-            const absoluteIndex = startIndex + index;
-            tableHTML += '<tr class="border-t border-gray-200 dark:border-gray-700">';
-            tableHTML += '<td class="px-4 py-1 text-gray-900 dark:text-white text-center">' + (absoluteIndex + 1) + '</td>';
-            tableHTML += '<td class="px-4 py-1 text-gray-900 dark:text-white text-center">' + account.name + '</td>';
-            tableHTML += '<td class="px-4 py-1 text-gray-900 dark:text-white text-center">' + account.protocol.toUpperCase() + '</td>';
-            tableHTML += '<td class="px-4 py-1 text-center"><button onclick="deleteAccount(' + absoluteIndex + ')" class="px-2 py-1 text-xs rounded-lg action-btn">Hapus</button></td>';
-            tableHTML += '</tr>';
-        });
-
-        tableHTML += '</tbody></table>';
-        listContainer.innerHTML = tableHTML;
-
-        const showingFrom = totalAccounts > 0 ? startIndex + 1 : 0;
-        const showingTo = Math.min(startIndex + ACCOUNTS_PER_PAGE, totalAccounts);
-
-        if (paginationContainer) {
-            let paginationHTML = generateAccountPaginationHTML(page, totalPages);
-            paginationHTML += '<p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Showing ' + showingFrom + ' to ' + showingTo + ' of ' + totalAccounts + ' Remarks</p>';
-
-            paginationContainer.className = "flex flex-col items-center mt-4 gap-2";
-            paginationContainer.innerHTML = paginationHTML;
-        }
-    }
-
-    function navigateToAccountPage(page) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('acc_page', page);
-        history.pushState({page: page}, '', url.toString());
-        displayCreatedAccounts(page);
-    }
-
-    function deleteAccount(index) {
-        Swal.fire({
-            title: 'Masukkan Password untuk Menghapus',
-            input: 'password',
-            inputPlaceholder: 'Masukkan password...',
-            showCancelButton: true,
-            confirmButtonText: 'Hapus',
-            showLoaderOnConfirm: true,
-            preConfirm: (password) => {
-                const params = new URLSearchParams({
-                    password: password,
-                    index: index
-                });
-                return fetch('/api/v1/accounts?' + params.toString(), {
-                    method: 'DELETE'
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(response.status === 401 ? 'Password salah!' : 'Gagal menghapus akun.');
-                    }
-                    return response;
-                })
-                .catch(error => {
-                    Swal.showValidationMessage(error.message);
-                });
-            },
-            allowOutsideClick: () => !Swal.isLoading()
-        }).then((result) => {
-            if (result.isConfirmed) {
-                displayCreatedAccounts(1); // Refresh list to page 1
-                Swal.fire(
-                    'Dihapus!',
-                    'Akun telah dihapus.',
-                    'success'
-                );
-            }
-        });
-    }
-
-      function copyToClipboardAsRaw() {
-        const previewElement = document.getElementById('config-preview');
-        if (!previewElement) return;
-        navigator.clipboard.writeText(previewElement.value);
-
-        notification.classList.remove("opacity-0");
-        setTimeout(() => {
-          notification.classList.add("opacity-0");
-        }, 2000);
+// Fungsi untuk mengonversi countryCode menjadi emoji bendera
+const getEmojiFlag = (countryCode) => {
+  if (!countryCode || countryCode.length !== 2) return ''; // Validasi input
+  return String.fromCodePoint(
+    ...[...countryCode.toUpperCase()].map(char => 0x1F1E6 + char.charCodeAt(0) - 65)
+  );
+};
+async function generateClashSub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
       }
-
-      async function copyToClipboardAsTarget(target) {
-        windowInfoContainer.innerText = "Generating config...";
-        const url = "PLACEHOLDER_CONVERTER_URL";
-        const res = await fetch(url, {
-          method: "POST",
-          body: JSON.stringify({
-            url: rawConfig.replaceAll('\\n', ','),
-            format: target,
-            template: "cf",
-          }),
-        });
-
-        if (res.status == 200) {
-          windowInfoContainer.innerText = "Done!";
-          navigator.clipboard.writeText(await res.text());
-
-          notification.classList.remove("opacity-0");
-          setTimeout(() => {
-            notification.classList.add("opacity-0");
-          }, 2000);
-        } else {
-          windowInfoContainer.innerText = "Error " + res.statusText;
-        }
-      }
-
-      function navigateTo(link) {
-        window.location.href = link + window.location.search;
-      }
-
-      function applyFilters() {
-          const protocol = document.getElementById('protocol-select').value;
-          const country = document.getElementById('country-select').value;
-          const host = document.getElementById('host-select').value;
-          const port = document.getElementById('port-select').value;
-
-          const url = new URL(window.location.href);
-          url.searchParams.set('vpn', protocol);
-          url.searchParams.set('cc', country);
-          url.searchParams.set('host', host);
-          url.searchParams.set('port', port);
-          window.location.href = url.toString();
-      }
-
-      function searchProxy() {
-    const searchBar = document.getElementById("search-bar");
-    // Gunakan .trim() untuk memastikan input yang berisi spasi kosong juga dianggap kosong
-    const searchValue = searchBar.value.trim(); 
-    
-    // --- KONDISI BARU: Cek jika input kosong ---
-    if (searchValue === "") {
-        // Alihkan pengguna ke /sub jika input kosong
-        window.location.href = "/sub";
-        return; // Hentikan eksekusi fungsi selanjutnya
-    }
-    // --- Akhir Kondisi Baru ---
-
-    const url = new URL(window.location.href);
-
-    if (searchValue.length === 2) {
-        // Logika untuk kode negara (cc)
-        url.searchParams.set("cc", searchValue);
-        url.searchParams.delete("search");
-    } else {
-        // Logika untuk pencarian umum
-        url.searchParams.set("search", searchValue);
-        url.searchParams.delete("cc");
-    }
-    
-    // Alihkan ke URL baru dengan parameter pencarian
-    window.location.href = url.toString();
-}
-
-      function toggleOutputWindow() {
-        windowInfoContainer.innerText = "Select output:";
-        toggleWindow();
-        const rootElement = document.getElementById("output-window");
-        if (rootElement.classList.contains("hidden")) {
-          rootElement.classList.remove("hidden");
-        } else {
-          rootElement.classList.add("hidden");
-        }
-      }
-
-      function toggleWildcardsWindow() {
-        windowInfoContainer.innerText = "Domain list";
-        toggleWindow();
-        getDomainList();
-        const rootElement = document.getElementById("wildcards-window");
-        if (rootElement.classList.contains("hidden")) {
-          rootElement.classList.remove("hidden");
-        } else {
-          rootElement.classList.add("hidden");
-        }
-      }
-
-      function toggleWindow() {
-        if (windowContainer.classList.contains("hidden")) {
-          windowContainer.classList.remove("hidden");
-        } else {
-          windowContainer.classList.add("hidden");
-        }
-      }
-
-      function toggleDarkMode() {
-        const rootElement = document.getElementById("html");
-        if (rootElement.classList.contains("dark")) {
-          rootElement.classList.remove("dark");
-          localStorage.setItem('theme', 'light');
-        } else {
-          rootElement.classList.add("dark");
-          localStorage.setItem('theme', 'dark');
-        }
-      }
+      return false;
+    });
+  }
   
-function checkProxy() {
-    for (let i = 0; ; i++) {
-        const pingElement = document.getElementById("ping-" + i);
-        if (pingElement == undefined) return;
-
-        const target = pingElement.textContent.split(" ").filter((ipPort) => ipPort.match(":"))[0];
-        if (target) {
-            // Gunakan innerHTML untuk menampilkan multi-baris
-            pingElement.innerHTML = "Checking..."; 
-        } else {
-            continue;
-        }
-
-        let isActive = false;
-        new Promise(async (resolve) => {
-            const res = await fetch('PLACEHOLDER_CHECK_PROXY_URL' + target)
-                .then(async (res) => {
-                    if (isActive) return;
-                    if (res.status == 200) {
-                        pingElement.classList.remove("dark:text-white");
-                        const jsonResp = await res.json();
-                        
-                        // Periksa status dari JSON
-                        if (jsonResp.status === "ACTIVE") {
-                            isActive = true;
-                            // Mengambil delay dan colo dari data JSON
-                            const delay = jsonResp.delay || "N/A";
-                            const colo = jsonResp.colo || "N/A";
-
-                            // MODIFIKASI: Menampilkan Active berkedip dan Delay/Colo KUNING
-                            pingElement.innerHTML = '<span class="blink-text">Active</span><br><span class="text-xs font-normal text-yellow-400">' + delay + ' (' + colo + ')</span>';
-                            
-                            // Tambahkan kelas untuk warna hijau pada elemen utama (untuk Active)
-                            pingElement.classList.add("text-green-600");
-                            pingElement.classList.remove("text-red-600"); 
-
-                        } else {
-                            pingElement.textContent = "Inactive";
-                            pingElement.classList.add("text-red-600");
-                            pingElement.classList.remove("text-green-600"); 
-                        }
-                    } else {
-                        pingElement.textContent = "Check Failed!";
-                        pingElement.classList.add("text-red-600");
-                        pingElement.classList.remove("text-green-600");
-                    }
-                })
-                .catch(() => {
-                    // Tambahkan penanganan error jika fetch gagal total (mis. masalah jaringan)
-                    pingElement.textContent = "Fetch Error!";
-                    pingElement.classList.add("text-red-600");
-                    pingElement.classList.remove("text-green-600");
-                })
-                .finally(() => {
-                    resolve(0);
-                });
-        });
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
+  }
+  
+  let conf = '';
+  let bex = '';
+  let count = 1;
+  
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const emojiFlag = getEmojiFlag(line.split(',')[2]); // Konversi ke emoji bendera
+    const sanitize = (text) => text.replace(/[\n\r]+/g, "").trim(); // Hapus newline dan spasi ekstra
+    let ispName = sanitize(`${emojiFlag} (${line.split(',')[2]}) ${line.split(',')[3]} ${count ++}`);
+    const UUIDS = `${generateUUIDv4()}`;
+    const ports = tls ? '443' : '80';
+    const snio = tls ? `\n  servername: ${geo81}` : '';
+    const snioo = tls ? `\n  cipher: auto` : '';
+    if (type === 'vless') {
+      bex += `  - ${ispName}\n`
+      conf += `
+- name: ${ispName}
+  server: ${bug}
+  port: ${ports}
+  type: vless
+  uuid: ${UUIDS}${snioo}
+  tls: ${tls}
+  udp: true
+  skip-cert-verify: true
+  network: ws${snio}
+  ws-opts:
+    path: ${pathinfo}${proxyHost}=${proxyPort}
+    headers:
+      Host: ${geo81}`;
+    } else if (type === 'trojan') {
+      bex += `  - ${ispName}\n`
+      conf += `
+- name: ${ispName}
+  server: ${bug}
+  port: 443
+  type: trojan
+  password: ${UUIDS}
+  udp: true
+  skip-cert-verify: true
+  network: ws
+  sni: ${geo81}
+  ws-opts:
+    path: ${pathinfo}${proxyHost}=${proxyPort}
+    headers:
+      Host: ${geo81}`;
+    } else if (type === 'ss') {
+      bex += `  - ${ispName}\n`
+      conf += `
+- name: ${ispName}
+  type: ss
+  server: ${bug}
+  port: ${ports}
+  cipher: none
+  password: ${UUIDS}
+  udp: true
+  plugin: v2ray-plugin
+  plugin-opts:
+    mode: websocket
+    tls: ${tls}
+    skip-cert-verify: true
+    host: ${geo81}
+    path: ${pathinfo}${proxyHost}=${proxyPort}
+    mux: false
+    headers:
+      custom: ${geo81}`;
+    } else if (type === 'mix') {
+      bex += `  - ${ispName} vless\n  - ${ispName} trojan\n  - ${ispName} ss\n`;
+      conf += `
+- name: ${ispName} vless
+  server: ${bug}
+  port: ${ports}
+  type: vless
+  uuid: ${UUIDS}
+  cipher: auto
+  tls: ${tls}
+  udp: true
+  skip-cert-verify: true
+  network: ws${snio}
+  ws-opts:
+    path: ${pathinfo}${proxyHost}=${proxyPort}
+    headers:
+      Host: ${geo81}
+- name: ${ispName} trojan
+  server: ${bug}
+  port: 443
+  type: trojan
+  password: ${UUIDS}
+  udp: true
+  skip-cert-verify: true
+  network: ws
+  sni: ${geo81}
+  ws-opts:
+    path: ${pathinfo}${proxyHost}=${proxyPort}
+    headers:
+      Host: ${geo81}
+- name: ${ispName} ss
+  type: ss
+  server: ${bug}
+  port: ${ports}
+  cipher: none
+  password: ${UUIDS}
+  udp: true
+  plugin: v2ray-plugin
+  plugin-opts:
+    mode: websocket
+    tls: ${tls}
+    skip-cert-verify: true
+    host: ${geo81}
+    path: ${pathinfo}${proxyHost}=${proxyPort}
+    mux: false
+    headers:
+      custom: ${geo81}`;
     }
+  }
+  return `#### BY : GEO PROJECT #### 
+
+port: 7890
+socks-port: 7891
+redir-port: 7892
+mixed-port: 7893
+tproxy-port: 7895
+ipv6: false
+mode: rule
+log-level: silent
+allow-lan: true
+external-controller: 0.0.0.0:9090
+secret: ""
+bind-address: "*"
+unified-delay: true
+profile:
+  store-selected: true
+  store-fake-ip: true
+dns:
+  enable: true
+  ipv6: false
+  use-host: true
+  enhanced-mode: fake-ip
+  listen: 0.0.0.0:7874
+  nameserver:
+    - 8.8.8.8
+    - 1.0.0.1
+    - https://dns.google/dns-query
+  fallback:
+    - 1.1.1.1
+    - 8.8.4.4
+    - https://cloudflare-dns.com/dns-query
+    - 112.215.203.254
+  default-nameserver:
+    - 8.8.8.8
+    - 1.1.1.1
+    - 112.215.203.254
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.localdomain"
+    - "*.example"
+    - "*.invalid"
+    - "*.localhost"
+    - "*.test"
+    - "*.local"
+    - "*.home.arpa"
+    - time.*.com
+    - time.*.gov
+    - time.*.edu.cn
+    - time.*.apple.com
+    - time1.*.com
+    - time2.*.com
+    - time3.*.com
+    - time4.*.com
+    - time5.*.com
+    - time6.*.com
+    - time7.*.com
+    - ntp.*.com
+    - ntp1.*.com
+    - ntp2.*.com
+    - ntp3.*.com
+    - ntp4.*.com
+    - ntp5.*.com
+    - ntp6.*.com
+    - ntp7.*.com
+    - "*.time.edu.cn"
+    - "*.ntp.org.cn"
+    - +.pool.ntp.org
+    - time1.cloud.tencent.com
+    - music.163.com
+    - "*.music.163.com"
+    - "*.126.net"
+    - musicapi.taihe.com
+    - music.taihe.com
+    - songsearch.kugou.com
+    - trackercdn.kugou.com
+    - "*.kuwo.cn"
+    - api-jooxtt.sanook.com
+    - api.joox.com
+    - joox.com
+    - y.qq.com
+    - "*.y.qq.com"
+    - streamoc.music.tc.qq.com
+    - mobileoc.music.tc.qq.com
+    - isure.stream.qqmusic.qq.com
+    - dl.stream.qqmusic.qq.com
+    - aqqmusic.tc.qq.com
+    - amobile.music.tc.qq.com
+    - "*.xiami.com"
+    - "*.music.migu.cn"
+    - music.migu.cn
+    - "*.msftconnecttest.com"
+    - "*.msftncsi.com"
+    - msftconnecttest.com
+    - msftncsi.com
+    - localhost.ptlogin2.qq.com
+    - localhost.sec.qq.com
+    - +.srv.nintendo.net
+    - +.stun.playstation.net
+    - xbox.*.microsoft.com
+    - xnotify.xboxlive.com
+    - +.battlenet.com.cn
+    - +.wotgame.cn
+    - +.wggames.cn
+    - +.wowsgame.cn
+    - +.wargaming.net
+    - proxy.golang.org
+    - stun.*.*
+    - stun.*.*.*
+    - +.stun.*.*
+    - +.stun.*.*.*
+    - +.stun.*.*.*.*
+    - heartbeat.belkin.com
+    - "*.linksys.com"
+    - "*.linksyssmartwifi.com"
+    - "*.router.asus.com"
+    - mesu.apple.com
+    - swscan.apple.com
+    - swquery.apple.com
+    - swdownload.apple.com
+    - swcdn.apple.com
+    - swdist.apple.com
+    - lens.l.google.com
+    - stun.l.google.com
+    - +.nflxvideo.net
+    - "*.square-enix.com"
+    - "*.finalfantasyxiv.com"
+    - "*.ffxiv.com"
+    - "*.mcdn.bilivideo.cn"
+    - +.media.dssott.com
+proxies:${conf}
+proxy-groups:
+- name: INTERNET
+  type: select
+  disable-udp: true
+  proxies:
+  - BEST-PING
+${bex}- name: ADS
+  type: select
+  disable-udp: false
+  proxies:
+  - REJECT
+  - INTERNET
+- name: BEST-PING
+  type: url-test
+  url: https://detectportal.firefox.com/success.txt
+  interval: 60
+  proxies:
+${bex}rule-providers:
+  rule_hijacking:
+    type: file
+    behavior: classical
+    path: "./rule_provider/rule_hijacking.yaml"
+    url: https://raw.githubusercontent.com/malikshi/open_clash/main/rule_provider/rule_hijacking.yaml
+  rule_privacy:
+    type: file
+    behavior: classical
+    url: https://raw.githubusercontent.com/malikshi/open_clash/main/rule_provider/rule_privacy.yaml
+    path: "./rule_provider/rule_privacy.yaml"
+  rule_basicads:
+    type: file
+    behavior: domain
+    url: https://raw.githubusercontent.com/malikshi/open_clash/main/rule_provider/rule_basicads.yaml
+    path: "./rule_provider/rule_basicads.yaml"
+  rule_personalads:
+    type: file
+    behavior: classical
+    url: https://raw.githubusercontent.com/malikshi/open_clash/main/rule_provider/rule_personalads.yaml
+    path: "./rule_provider/rule_personalads.yaml"
+rules:
+- IP-CIDR,198.18.0.1/16,REJECT,no-resolve
+- RULE-SET,rule_personalads,ADS
+- RULE-SET,rule_basicads,ADS
+- RULE-SET,rule_hijacking,ADS
+- RULE-SET,rule_privacy,ADS
+- MATCH,INTERNET`;
 }
-
-      function checkRegion() {
-        for (let i = 0; ; i++) {
-          const containerRegionCheck = document.getElementById("container-region-check-" + i);
-          const configSample = document.getElementById("config-sample-" + i).value.replaceAll(" ", "");
-          if (containerRegionCheck == undefined) break;
-
-          const res = fetch(
-            "https://api.foolvpn.me/regioncheck?config=" + encodeURIComponent(configSample)
-          ).then(async (res) => {
-            if (res.status == 200) {
-              containerRegionCheck.innerHTML = "<hr>";
-              for (const result of await res.json()) {
-                containerRegionCheck.innerHTML += "<p>" + result.name + ": " + result.region + "</p>";
-              }
-            }
-          });
-        }
+async function generateSurfboardSub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
       }
-
-      function checkGeoip() {
-        const containerIP = document.getElementById("container-info-ip");
-        const containerCountry = document.getElementById("container-info-country");
-        const containerISP = document.getElementById("container-info-isp");
-        const res = fetch("https://" + rootDomain + "/api/v1/myip").then(async (res) => {
-          if (res.status == 200) {
-            const respJson = await res.json();
-            containerIP.innerText = "IP: " + respJson.ip;
-            containerCountry.innerText = "Country: " + respJson.country;
-            containerISP.innerText = "ISP: " + respJson.asOrganization;
-          }
-        });
-      }
-
-     function updateTime() {
-    const timeElement = document.getElementById("time-info-value");
-    if (timeElement) {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString('en-GB');
-        timeElement.textContent = timeString;
+      return false;
+    });
+  }
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
+  }
+  let conf = '';
+  let bex = '';
+  let count = 1;
+  
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const emojiFlag = getEmojiFlag(line.split(',')[2]); // Konversi ke emoji bendera
+    const sanitize = (text) => text.replace(/[\n\r]+/g, "").trim(); // Hapus newline dan spasi ekstra
+    let ispName = sanitize(`${emojiFlag} (${line.split(',')[2]}) ${line.split(',')[3]} ${count ++}`);
+    const UUIDS = `${generateUUIDv4()}`;
+    if (type === 'trojan') {
+      bex += `${ispName},`
+      conf += `
+${ispName} = trojan, ${bug}, 443, password = ${UUIDS}, udp-relay = true, skip-cert-verify = true, sni = ${geo81}, ws = true, ws-path = ${pathinfo}${proxyHost}:${proxyPort}, ws-headers = Host:"${geo81}"\n`;
     }
+  }
+  return `#### BY : GEO PROJECT ####
+
+[General]
+dns-server = system, 108.137.44.39, 108.137.44.9, puredns.org:853
+
+[Proxy]
+${conf}
+
+[Proxy Group]
+Select Group = select,Load Balance,Best Ping,FallbackGroup,${bex}
+Load Balance = load-balance,${bex}
+Best Ping = url-test,${bex} url=http://www.gstatic.com/generate_204, interval=600, tolerance=100, timeout=5
+FallbackGroup = fallback,${bex} url=http://www.gstatic.com/generate_204, interval=600, timeout=5
+AdBlock = select,REJECT,Select Group
+
+[Rule]
+MATCH,Select Group
+DOMAIN-SUFFIX,pagead2.googlesyndication.com, AdBlock
+DOMAIN-SUFFIX,pagead2.googleadservices.com, AdBlock
+DOMAIN-SUFFIX,afs.googlesyndication.com, AdBlock
+DOMAIN-SUFFIX,ads.google.com, AdBlock
+DOMAIN-SUFFIX,adservice.google.com, AdBlock
+DOMAIN-SUFFIX,googleadservices.com, AdBlock
+DOMAIN-SUFFIX,static.media.net, AdBlock
+DOMAIN-SUFFIX,media.net, AdBlock
+DOMAIN-SUFFIX,adservetx.media.net, AdBlock
+DOMAIN-SUFFIX,mediavisor.doubleclick.net, AdBlock
+DOMAIN-SUFFIX,m.doubleclick.net, AdBlock
+DOMAIN-SUFFIX,static.doubleclick.net, AdBlock
+DOMAIN-SUFFIX,doubleclick.net, AdBlock
+DOMAIN-SUFFIX,ad.doubleclick.net, AdBlock
+DOMAIN-SUFFIX,fastclick.com, AdBlock
+DOMAIN-SUFFIX,fastclick.net, AdBlock
+DOMAIN-SUFFIX,media.fastclick.net, AdBlock
+DOMAIN-SUFFIX,cdn.fastclick.net, AdBlock
+DOMAIN-SUFFIX,adtago.s3.amazonaws.com, AdBlock
+DOMAIN-SUFFIX,analyticsengine.s3.amazonaws.com, AdBlock
+DOMAIN-SUFFIX,advice-ads.s3.amazonaws.com, AdBlock
+DOMAIN-SUFFIX,affiliationjs.s3.amazonaws.com, AdBlock
+DOMAIN-SUFFIX,advertising-api-eu.amazon.com, AdBlock
+DOMAIN-SUFFIX,amazonclix.com, AdBlock, AdBlock
+DOMAIN-SUFFIX,assoc-amazon.com, AdBlock
+DOMAIN-SUFFIX,ads.yahoo.com, AdBlock
+DOMAIN-SUFFIX,adserver.yahoo.com, AdBlock
+DOMAIN-SUFFIX,global.adserver.yahoo.com, AdBlock
+DOMAIN-SUFFIX,us.adserver.yahoo.com, AdBlock
+DOMAIN-SUFFIX,adspecs.yahoo.com, AdBlock
+DOMAIN-SUFFIX,br.adspecs.yahoo.com, AdBlock
+DOMAIN-SUFFIX,latam.adspecs.yahoo.com, AdBlock
+DOMAIN-SUFFIX,ush.adspecs.yahoo.com, AdBlock
+DOMAIN-SUFFIX,advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,de.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,es.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,fr.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,in.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,it.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,sea.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,uk.advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,analytics.yahoo.com, AdBlock
+DOMAIN-SUFFIX,cms.analytics.yahoo.com, AdBlock
+DOMAIN-SUFFIX,opus.analytics.yahoo.com, AdBlock
+DOMAIN-SUFFIX,sp.analytics.yahoo.com, AdBlock
+DOMAIN-SUFFIX,comet.yahoo.com, AdBlock
+DOMAIN-SUFFIX,log.fc.yahoo.com, AdBlock
+DOMAIN-SUFFIX,ganon.yahoo.com, AdBlock
+DOMAIN-SUFFIX,gemini.yahoo.com, AdBlock
+DOMAIN-SUFFIX,beap.gemini.yahoo.com, AdBlock
+DOMAIN-SUFFIX,geo.yahoo.com, AdBlock
+DOMAIN-SUFFIX,marketingsolutions.yahoo.com, AdBlock
+DOMAIN-SUFFIX,pclick.yahoo.com, AdBlock
+DOMAIN-SUFFIX,analytics.query.yahoo.com, AdBlock
+DOMAIN-SUFFIX,geo.query.yahoo.com, AdBlock
+DOMAIN-SUFFIX,onepush.query.yahoo.com, AdBlock
+DOMAIN-SUFFIX,bats.video.yahoo.com, AdBlock
+DOMAIN-SUFFIX,visit.webhosting.yahoo.com, AdBlock
+DOMAIN-SUFFIX,ads.yap.yahoo.com, AdBlock
+DOMAIN-SUFFIX,m.yap.yahoo.com, AdBlock
+DOMAIN-SUFFIX,partnerads.ysm.yahoo.com, AdBlock
+DOMAIN-SUFFIX,appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,19534.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,3.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,30488.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,4.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,report.appmetrica.yandex.net, AdBlock
+DOMAIN-SUFFIX,extmaps-api.yandex.net, AdBlock
+DOMAIN-SUFFIX,analytics.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,banners.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,banners-slb.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,startup.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,offerwall.yandex.net, AdBlock
+DOMAIN-SUFFIX,adfox.yandex.ru, AdBlock
+DOMAIN-SUFFIX,matchid.adfox.yandex.ru, AdBlock
+DOMAIN-SUFFIX,adsdk.yandex.ru, AdBlock
+DOMAIN-SUFFIX,an.yandex.ru, AdBlock
+DOMAIN-SUFFIX,redirect.appmetrica.yandex.ru, AdBlock
+DOMAIN-SUFFIX,awaps.yandex.ru, AdBlock
+DOMAIN-SUFFIX,awsync.yandex.ru, AdBlock
+DOMAIN-SUFFIX,bs.yandex.ru, AdBlock
+DOMAIN-SUFFIX,bs-meta.yandex.ru, AdBlock
+DOMAIN-SUFFIX,clck.yandex.ru, AdBlock
+DOMAIN-SUFFIX,informer.yandex.ru, AdBlock
+DOMAIN-SUFFIX,kiks.yandex.ru, AdBlock
+DOMAIN-SUFFIX,grade.market.yandex.ru, AdBlock
+DOMAIN-SUFFIX,mc.yandex.ru, AdBlock
+DOMAIN-SUFFIX,metrika.yandex.ru, AdBlock
+DOMAIN-SUFFIX,click.sender.yandex.ru, AdBlock
+DOMAIN-SUFFIX,share.yandex.ru, AdBlock
+DOMAIN-SUFFIX,yandexadexchange.net, AdBlock
+DOMAIN-SUFFIX,mobile.yandexadexchange.net, AdBlock
+DOMAIN-SUFFIX,google-analytics.com, AdBlock
+DOMAIN-SUFFIX,ssl.google-analytics.com, AdBlock
+DOMAIN-SUFFIX,api-hotjar.com, AdBlock
+DOMAIN-SUFFIX,hotjar-analytics.com, AdBlock
+DOMAIN-SUFFIX,hotjar.com, AdBlock
+DOMAIN-SUFFIX,static.hotjar.com, AdBlock
+DOMAIN-SUFFIX,mouseflow.com, AdBlock
+DOMAIN-SUFFIX,a.mouseflow.com, AdBlock
+DOMAIN-SUFFIX,freshmarketer.com, AdBlock
+DOMAIN-SUFFIX,luckyorange.com, AdBlock
+DOMAIN-SUFFIX,luckyorange.net, AdBlock
+DOMAIN-SUFFIX,cdn.luckyorange.com, AdBlock
+DOMAIN-SUFFIX,w1.luckyorange.com, AdBlock
+DOMAIN-SUFFIX,upload.luckyorange.net, AdBlock
+DOMAIN-SUFFIX,cs.luckyorange.net, AdBlock
+DOMAIN-SUFFIX,settings.luckyorange.net, AdBlock
+DOMAIN-SUFFIX,stats.wp.com, AdBlock
+DOMAIN-SUFFIX,notify.bugsnag.com, AdBlock
+DOMAIN-SUFFIX,sessions.bugsnag.com, AdBlock
+DOMAIN-SUFFIX,api.bugsnag.com, AdBlock
+DOMAIN-SUFFIX,app.bugsnag.com, AdBlock
+DOMAIN-SUFFIX,browser.sentry-cdn.com, AdBlock
+DOMAIN-SUFFIX,app.getsentry.com, AdBlock
+DOMAIN-SUFFIX,pixel.facebook.com, AdBlock
+DOMAIN-SUFFIX,analytics.facebook.com, AdBlock
+DOMAIN-SUFFIX,ads.facebook.com, AdBlock
+DOMAIN-SUFFIX,an.facebook.com, AdBlock
+DOMAIN-SUFFIX,ads-api.twitter.com, AdBlock
+DOMAIN-SUFFIX,advertising.twitter.com, AdBlock
+DOMAIN-SUFFIX,ads-twitter.com, AdBlock
+DOMAIN-SUFFIX,static.ads-twitter.com, AdBlock
+DOMAIN-SUFFIX,ads.linkedin.com, AdBlock
+DOMAIN-SUFFIX,analytics.pointdrive.linkedin.com, AdBlock
+DOMAIN-SUFFIX,ads.pinterest.com, AdBlock
+DOMAIN-SUFFIX,log.pinterest.com, AdBlock
+DOMAIN-SUFFIX,ads-dev.pinterest.com, AdBlock
+DOMAIN-SUFFIX,analytics.pinterest.com, AdBlock
+DOMAIN-SUFFIX,trk.pinterest.com, AdBlock
+DOMAIN-SUFFIX,trk2.pinterest.com, AdBlock
+DOMAIN-SUFFIX,widgets.pinterest.com, AdBlock
+DOMAIN-SUFFIX,ads.reddit.com, AdBlock
+DOMAIN-SUFFIX,rereddit.com, AdBlock
+DOMAIN-SUFFIX,events.redditmedia.com, AdBlock
+DOMAIN-SUFFIX,d.reddit.com, AdBlock
+DOMAIN-SUFFIX,ads-sg.tiktok.com, AdBlock
+DOMAIN-SUFFIX,analytics-sg.tiktok.com, AdBlock
+DOMAIN-SUFFIX,ads.tiktok.com, AdBlock
+DOMAIN-SUFFIX,analytics.tiktok.com, AdBlock
+DOMAIN-SUFFIX,ads.youtube.com, AdBlock
+DOMAIN-SUFFIX,youtube.cleverads.vn, AdBlock
+DOMAIN-SUFFIX,ads.yahoo.com, AdBlock
+DOMAIN-SUFFIX,adserver.yahoo.com, AdBlock
+DOMAIN-SUFFIX,global.adserver.yahoo.com, AdBlock
+DOMAIN-SUFFIX,us.adserver.yahoo.com, AdBlock
+DOMAIN-SUFFIX,adspecs.yahoo.com, AdBlock
+DOMAIN-SUFFIX,advertising.yahoo.com, AdBlock
+DOMAIN-SUFFIX,analytics.yahoo.com, AdBlock
+DOMAIN-SUFFIX,analytics.query.yahoo.com, AdBlock
+DOMAIN-SUFFIX,ads.yap.yahoo.com, AdBlock
+DOMAIN-SUFFIX,m.yap.yahoo.com, AdBlock
+DOMAIN-SUFFIX,partnerads.ysm.yahoo.com, AdBlock
+DOMAIN-SUFFIX,appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,19534.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,3.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,30488.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,4.redirect.appmetrica.yandex.com, AdBlock
+DOMAIN-SUFFIX,report.appmetrica.yandex.net, AdBlock
+DOMAIN-SUFFIX,extmaps-api.yandex.net, AdBlock
+DOMAIN-SUFFIX,analytics.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,banners.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,banners-slb.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,startup.mobile.yandex.net, AdBlock
+DOMAIN-SUFFIX,offerwall.yandex.net, AdBlock
+DOMAIN-SUFFIX,adfox.yandex.ru, AdBlock
+DOMAIN-SUFFIX,matchid.adfox.yandex.ru, AdBlock
+DOMAIN-SUFFIX,adsdk.yandex.ru, AdBlock
+DOMAIN-SUFFIX,an.yandex.ru, AdBlock
+DOMAIN-SUFFIX,redirect.appmetrica.yandex.ru, AdBlock
+DOMAIN-SUFFIX,awaps.yandex.ru, AdBlock
+DOMAIN-SUFFIX,awsync.yandex.ru, AdBlock
+DOMAIN-SUFFIX,bs.yandex.ru, AdBlock
+DOMAIN-SUFFIX,bs-meta.yandex.ru, AdBlock
+DOMAIN-SUFFIX,clck.yandex.ru, AdBlock
+DOMAIN-SUFFIX,informer.yandex.ru, AdBlock
+DOMAIN-SUFFIX,kiks.yandex.ru, AdBlock
+DOMAIN-SUFFIX,grade.market.yandex.ru, AdBlock
+DOMAIN-SUFFIX,mc.yandex.ru, AdBlock
+DOMAIN-SUFFIX,metrika.yandex.ru, AdBlock
+DOMAIN-SUFFIX,click.sender.yandex.ru, AdBlock
+DOMAIN-SUFFIX,share.yandex.ru, AdBlock
+DOMAIN-SUFFIX,yandexadexchange.net, AdBlock
+DOMAIN-SUFFIX,mobile.yandexadexchange.net, AdBlock
+DOMAIN-SUFFIX,bdapi-in-ads.realmemobile.com, AdBlock
+DOMAIN-SUFFIX,adsfs.oppomobile.com, AdBlock
+DOMAIN-SUFFIX,adx.ads.oppomobile.com, AdBlock
+DOMAIN-SUFFIX,bdapi.ads.oppomobile.com, AdBlock
+DOMAIN-SUFFIX,ck.ads.oppomobile.com, AdBlock
+DOMAIN-SUFFIX,data.ads.oppomobile.com, AdBlock
+DOMAIN-SUFFIX,g1.ads.oppomobile.com, AdBlock
+DOMAIN-SUFFIX,api.ad.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,app.chat.xiaomi.net, AdBlock
+DOMAIN-SUFFIX,data.mistat.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,data.mistat.intl.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,data.mistat.india.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,data.mistat.rus.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,sdkconfig.ad.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,sdkconfig.ad.intl.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,globalapi.ad.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,www.cdn.ad.xiaomi.com, AdBlock
+DOMAIN-SUFFIX,tracking.miui.com, AdBlock
+DOMAIN-SUFFIX,sa.api.intl.miui.com, AdBlock
+DOMAIN-SUFFIX,tracking.miui.com, AdBlock
+DOMAIN-SUFFIX,tracking.intl.miui.com, AdBlock
+DOMAIN-SUFFIX,tracking.india.miui.com, AdBlock
+DOMAIN-SUFFIX,tracking.rus.miui.com, AdBlock
+DOMAIN-SUFFIX,analytics.oneplus.cn, AdBlock
+DOMAIN-SUFFIX,click.oneplus.cn, AdBlock
+DOMAIN-SUFFIX,click.oneplus.com, AdBlock
+DOMAIN-SUFFIX,open.oneplus.net, AdBlock
+DOMAIN-SUFFIX,metrics.data.hicloud.com, AdBlock
+DOMAIN-SUFFIX,metrics1.data.hicloud.com, AdBlock
+DOMAIN-SUFFIX,metrics2.data.hicloud.com, AdBlock
+DOMAIN-SUFFIX,metrics3.data.hicloud.com, AdBlock
+DOMAIN-SUFFIX,metrics4.data.hicloud.com, AdBlock
+DOMAIN-SUFFIX,metrics5.data.hicloud.com, AdBlock
+DOMAIN-SUFFIX,logservice.hicloud.com, AdBlock
+DOMAIN-SUFFIX,logservice1.hicloud.com, AdBlock
+DOMAIN-SUFFIX,metrics-dra.dt.hicloud.com, AdBlock
+DOMAIN-SUFFIX,logbak.hicloud.com, AdBlock
+DOMAIN-SUFFIX,ad.samsungadhub.com, AdBlock
+DOMAIN-SUFFIX,samsungadhub.com, AdBlock
+DOMAIN-SUFFIX,samsungads.com, AdBlock
+DOMAIN-SUFFIX,smetrics.samsung.com, AdBlock
+DOMAIN-SUFFIX,nmetrics.samsung.com, AdBlock
+DOMAIN-SUFFIX,samsung-com.112.2o7.net, AdBlock
+DOMAIN-SUFFIX,business.samsungusa.com, AdBlock
+DOMAIN-SUFFIX,analytics.samsungknox.com, AdBlock
+DOMAIN-SUFFIX,bigdata.ssp.samsung.com, AdBlock
+DOMAIN-SUFFIX,analytics-api.samsunghealthcn.com, AdBlock
+DOMAIN-SUFFIX,config.samsungads.com, AdBlock
+DOMAIN-SUFFIX,metrics.apple.com, AdBlock
+DOMAIN-SUFFIX,securemetrics.apple.com, AdBlock
+DOMAIN-SUFFIX,supportmetrics.apple.com, AdBlock
+DOMAIN-SUFFIX,metrics.icloud.com, AdBlock
+DOMAIN-SUFFIX,metrics.mzstatic.com, AdBlock
+DOMAIN-SUFFIX,dzc-metrics.mzstatic.com, AdBlock
+DOMAIN-SUFFIX,books-analytics-events.news.apple-dns.net, AdBlock
+DOMAIN-SUFFIX,books-analytics-events.apple.com, AdBlock
+DOMAIN-SUFFIX,stocks-analytics-events.apple.com, AdBlock
+DOMAIN-SUFFIX,stocks-analytics-events.news.apple-dns.net, AdBlock
+DOMAIN-KEYWORD,pagead2, AdBlock
+DOMAIN-KEYWORD,adservice, AdBlock
+DOMAIN-KEYWORD,.ads, AdBlock
+DOMAIN-KEYWORD,.ad, AdBlock
+DOMAIN-KEYWORD,adservetx, AdBlock
+DOMAIN-KEYWORD,mediavisor, AdBlock
+DOMAIN-KEYWORD,adtago, AdBlock
+DOMAIN-KEYWORD,analyticsengine, AdBlock
+DOMAIN-KEYWORD,advice-ads, AdBlock
+DOMAIN-KEYWORD,affiliationjs, AdBlock
+DOMAIN-KEYWORD,advertising, AdBlock
+DOMAIN-KEYWORD,adserver, AdBlock
+DOMAIN-KEYWORD,pclick, AdBlock
+DOMAIN-KEYWORD,partnerads, AdBlock
+DOMAIN-KEYWORD,appmetrica, AdBlock
+DOMAIN-KEYWORD,adfox, AdBlock
+DOMAIN-KEYWORD,adsdk, AdBlock
+DOMAIN-KEYWORD,clck, AdBlock
+DOMAIN-KEYWORD,metrika, AdBlock
+DOMAIN-KEYWORD,api-hotjar, AdBlock
+DOMAIN-KEYWORD,hotjar-analytics, AdBlock
+DOMAIN-KEYWORD,hotjar, AdBlock
+DOMAIN-KEYWORD,luckyorange, AdBlock
+DOMAIN-KEYWORD,bugsnag, AdBlock
+DOMAIN-KEYWORD,sentry-cdn, AdBlock
+DOMAIN-KEYWORD,getsentry, AdBlock
+DOMAIN-KEYWORD,ads-api, AdBlock
+DOMAIN-KEYWORD,ads-twitter, AdBlock
+DOMAIN-KEYWORD,pointdrive, AdBlock
+DOMAIN-KEYWORD,ads-dev, AdBlock
+DOMAIN-KEYWORD,trk, AdBlock
+DOMAIN-KEYWORD,cleverads, AdBlock
+DOMAIN-KEYWORD,ads-sg, AdBlock
+DOMAIN-KEYWORD,analytics-sg, AdBlock
+DOMAIN-KEYWORD,adspecs, AdBlock
+DOMAIN-KEYWORD,adsfs, AdBlock
+DOMAIN-KEYWORD,adx, AdBlock
+DOMAIN-KEYWORD,tracking, AdBlock
+DOMAIN-KEYWORD,logservice, AdBlock
+DOMAIN-KEYWORD,logbak, AdBlock
+DOMAIN-KEYWORD,smetrics, AdBlock
+DOMAIN-KEYWORD,nmetrics, AdBlock
+DOMAIN-KEYWORD,securemetrics, AdBlock
+DOMAIN-KEYWORD,supportmetrics, AdBlock
+DOMAIN-KEYWORD,books-analytics, AdBlock
+DOMAIN-KEYWORD,stocks-analytics, AdBlock
+DOMAIN-SUFFIX,analytics.s3.amazonaws.com, AdBlock
+DOMAIN-SUFFIX,analytics.google.com, AdBlock
+DOMAIN-SUFFIX,click.googleanalytics.com, AdBlock
+DOMAIN-SUFFIX,events.reddit.com, AdBlock
+DOMAIN-SUFFIX,business-api.tiktok.com, AdBlock
+DOMAIN-SUFFIX,log.byteoversea.com, AdBlock
+DOMAIN-SUFFIX,udc.yahoo.com, AdBlock
+DOMAIN-SUFFIX,udcm.yahoo.com, AdBlock
+DOMAIN-SUFFIX,auction.unityads.unity3d.com, AdBlock
+DOMAIN-SUFFIX,webview.unityads.unity3d.com, AdBlock
+DOMAIN-SUFFIX,config.unityads.unity3d.com, AdBlock
+DOMAIN-SUFFIX,adfstat.yandex.ru, AdBlock
+DOMAIN-SUFFIX,iot-eu-logser.realme.com, AdBlock
+DOMAIN-SUFFIX,iot-logser.realme.com, AdBlock
+DOMAIN-SUFFIX,bdapi-ads.realmemobile.com, AdBlock
+DOMAIN-SUFFIX,grs.hicloud.com, AdBlock
+DOMAIN-SUFFIX,weather-analytics-events.apple.com, AdBlock
+DOMAIN-SUFFIX,notes-analytics-events.apple.com, AdBlock
+FINAL,Select Group`;
 }
-
-setInterval(updateTime, 1000);
-
-      function formatBytes(bytes, decimals = 2) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+async function generateHusiSub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
       }
+      return false;
+    });
+  }
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
+  }
+  let conf = '';
+  let bex = '';
+  let count = 1;
 
-      function checkStats() {
-        const requestsContainer = document.querySelector("#container-info-requests span");
-        const bandwidthContainer = document.querySelector("#container-info-bandwidth span");
-        if (!requestsContainer || !bandwidthContainer) return;
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const emojiFlag = getEmojiFlag(line.split(',')[2]); // Konversi ke emoji bendera
+    const sanitize = (text) => text.replace(/[\n\r]+/g, "").trim(); // Hapus newline dan spasi ekstra
+    let ispName = sanitize(`${emojiFlag} (${line.split(',')[2]}) ${line.split(',')[3]} ${count ++}`);
+    const UUIDS = `${generateUUIDv4()}`;
+    const ports = tls ? '443' : '80';
+    const snio = tls ? `\n      "tls": {\n        "disable_sni": false,\n        "enabled": true,\n        "insecure": true,\n        "server_name": "${geo81}"\n      },` : '';
+    if (type === 'vless') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "domain_strategy": "ipv4_only",
+      "flow": "",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "packet_encoding": "xudp",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName}",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "${UUIDS}"
+    },`;
+    } else if (type === 'trojan') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "domain_strategy": "ipv4_only",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "password": "${UUIDS}",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName}",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "trojan"
+    },`;
+    } else if (type === 'ss') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "type": "shadowsocks",
+      "tag": "${ispName}",
+      "server": "${bug}",
+      "server_port": 443,
+      "method": "none",
+      "password": "${UUIDS}",
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mux=0;path=${pathinfo}${proxyHost}=${proxyPort};host=${geo81};tls=1"
+    },`;
+    } else if (type === 'mix') {
+      bex += `        "${ispName} vless",\n        "${ispName} trojan",\n        "${ispName} ss",\n`
+      conf += `
+    {
+      "domain_strategy": "ipv4_only",
+      "flow": "",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "packet_encoding": "xudp",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName} vless",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "${UUIDS}"
+    },
+    {
+      "domain_strategy": "ipv4_only",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "password": "${UUIDS}",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName} trojan",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "trojan"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "${ispName} ss",
+      "server": "${bug}",
+      "server_port": 443,
+      "method": "none",
+      "password": "${UUIDS}",
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mux=0;path=${pathinfo}${proxyHost}=${proxyPort};host=${geo81};tls=1"
+    },`;
+    }
+  }
+  return `#### BY : GEO PROJECT ####
 
-        fetch("https://" + rootDomain + "/api/v1/stats")
-            .then(response => response.json())
-            .then(data => {
-                requestsContainer.textContent = data.requests.toLocaleString();
-                bandwidthContainer.textContent = formatBytes(data.bandwidth);
-            })
-            .catch(error => {
-                console.error('Error fetching stats:', error);
-                requestsContainer.textContent = "N/A";
-                bandwidthContainer.textContent = "N/A";
-            });
+{
+  "dns": {
+    "final": "dns-final",
+    "independent_cache": true,
+    "rules": [
+      {
+        "disable_cache": false,
+        "domain": [
+          "family.cloudflare-dns.com",
+          "${bug}"
+        ],
+        "server": "direct-dns"
       }
-
-      window.onload = () => {
-        checkGeoip();
-        checkProxy();
-        updateTime();
-        checkStats();
-        const urlParams = new URLSearchParams(window.location.search);
-        const accountPage = parseInt(urlParams.get('acc_page')) || 1;
-        displayCreatedAccounts(accountPage);
-        // checkRegion();
-        const observer = lozad(".lozad", {
-          load: function (el) {
-            el.classList.remove("scale-95");
-          },
-        });
-        observer.observe();
-      };
-
-      window.onscroll = () => {
-        const paginationContainer = document.getElementById("container-pagination");
-
-        if (window.innerHeight + Math.round(window.scrollY) >= document.body.offsetHeight) {
-          paginationContainer.classList.remove("-translate-y-6");
-        } else {
-          paginationContainer.classList.add("-translate-y-6");
-        }
-      };
-    </script>
-  </body>
-</html>
-`;
-
-class Document {
-    proxies = [];
-    wildcardDomains = [];
-    rootDomain = "";
-    startIndex = 0;
-
-    constructor(request, wildcardDomains = [], rootDomain = "", startIndex = 0) {
-        this.html = baseHTML;
-        this.request = request;
-        this.url = new URL(this.request.url);
-        this.wildcardDomains = wildcardDomains;
-        this.rootDomain = rootDomain;
-        this.startIndex = startIndex;
+    ],
+    "servers": [
+      {
+        "address": "https://family.cloudflare-dns.com/dns-query",
+        "address_resolver": "direct-dns",
+        "strategy": "ipv4_only",
+        "tag": "remote-dns"
+      },
+      {
+        "address": "local",
+        "strategy": "ipv4_only",
+        "tag": "direct-dns"
+      },
+      {
+        "address": "local",
+        "address_resolver": "dns-local",
+        "strategy": "ipv4_only",
+        "tag": "dns-final"
+      },
+      {
+        "address": "local",
+        "tag": "dns-local"
+      },
+      {
+        "address": "rcode://success",
+        "tag": "dns-block"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "../cache/cache.db",
+      "store_fakeip": true
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090"
+    },
+    "v2ray_api": {
+      "listen": "127.0.0.1:0",
+      "stats": {
+        "enabled": true,
+        "outbounds": [
+          "proxy",
+          "direct"
+        ]
+      }
     }
-
-    setTotalProxy(total) {
-        this.html = this.html.replace(
-            '<strong id="total-proxy-value" class="font-semibold">0</strong>',
-            `<strong id="total-proxy-value" class="font-semibold">${total}</strong>`
-        );
+  },
+  "inbounds": [
+    {
+      "listen": "0.0.0.0",
+      "listen_port": 6450,
+      "override_address": "8.8.8.8",
+      "override_port": 53,
+      "tag": "dns-in",
+      "type": "direct"
+    },
+    {
+      "domain_strategy": "",
+      "endpoint_independent_nat": true,
+      "inet4_address": [
+        "172.19.0.1/28"
+      ],
+      "mtu": 9000,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "stack": "system",
+      "tag": "tun-in",
+      "type": "tun"
+    },
+    {
+      "domain_strategy": "",
+      "listen": "0.0.0.0",
+      "listen_port": 2080,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "tag": "mixed-in",
+      "type": "mixed"
     }
-    
-    setPage(current, total) {
-        this.html = this.html.replace(
-            '<strong id="page-info-value" class="font-semibold">0/0</strong>',
-            `<strong id="page-info-value" class="font-semibold">${current}/${total}</strong>`
-        );
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "outbounds": [
+        "Best Latency",
+${bex}        "direct"
+      ],
+      "tag": "Internet",
+      "type": "selector"
+    },
+    {
+      "interval": "1m0s",
+      "outbounds": [
+${bex}        "direct"
+      ],
+      "tag": "Best Latency",
+      "type": "urltest",
+      "url": "https://detectportal.firefox.com/success.txt"
+    },
+${conf}
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    },
+    {
+      "tag": "dns-out",
+      "type": "dns"
     }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {
+        "outbound": "dns-out",
+        "port": [
+          53
+        ]
+      },
+      {
+        "inbound": [
+          "dns-in"
+        ],
+        "outbound": "dns-out"
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          443
+        ],
+        "port_range": []
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}`;
+}
+async function generateSingboxSub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
+      }
+      return false;
+    });
+  }
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
+  }
+  let conf = '';
+  let bex = '';
+  let count = 1;
 
-setTitle(title) {
-    this.html = this.html.replaceAll("PLACEHOLDER_JUDUL", title.replace("text-blue-500", "text-indigo-500"));
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const emojiFlag = getEmojiFlag(line.split(',')[2]); // Konversi ke emoji bendera
+    const sanitize = (text) => text.replace(/[\n\r]+/g, "").trim(); // Hapus newline dan spasi ekstra
+    let ispName = sanitize(`${emojiFlag} (${line.split(',')[2]}) ${line.split(',')[3]} ${count ++}`);
+    const UUIDS = `${generateUUIDv4()}`;
+    const ports = tls ? '443' : '80';
+    const snio = tls ? `\n      "tls": {\n        "enabled": true,\n        "server_name": "${geo81}",\n        "insecure": true\n      },` : '';
+    if (type === 'vless') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "type": "vless",
+      "tag": "${ispName}",
+      "domain_strategy": "ipv4_only",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "uuid": "${UUIDS}",${snio}
+      "multiplex": {
+        "protocol": "smux",
+        "max_streams": 32
+      },
+      "transport": {
+        "type": "ws",
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      },
+      "packet_encoding": "xudp"
+    },`;
+    } else if (type === 'trojan') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "type": "trojan",
+      "tag": "${ispName}",
+      "domain_strategy": "ipv4_only",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "password": "${UUIDS}",${snio}
+      "multiplex": {
+        "protocol": "smux",
+        "max_streams": 32
+      },
+      "transport": {
+        "type": "ws",
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },`;
+    } else if (type === 'ss') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "type": "shadowsocks",
+      "tag": "${ispName}",
+      "server": "${bug}",
+      "server_port": 443,
+      "method": "none",
+      "password": "${UUIDS}",
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mux=0;path=${pathinfo}${proxyHost}=${proxyPort};host=${geo81};tls=1"
+    },`;
+    } else if (type === 'mix') {
+      bex += `        "${ispName} vless",\n        "${ispName} trojan",\n        "${ispName} ss",\n`
+      conf += `
+    {
+      "type": "vless",
+      "tag": "${ispName} vless",
+      "domain_strategy": "ipv4_only",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "uuid": "${UUIDS}",${snio}
+      "multiplex": {
+        "protocol": "smux",
+        "max_streams": 32
+      },
+      "transport": {
+        "type": "ws",
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      },
+      "packet_encoding": "xudp"
+    },
+    {
+      "type": "trojan",
+      "tag": "${ispName} trojan",
+      "domain_strategy": "ipv4_only",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "password": "${UUIDS}",${snio}
+      "multiplex": {
+        "protocol": "smux",
+        "max_streams": 32
+      },
+      "transport": {
+        "type": "ws",
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "early_data_header_name": "Sec-WebSocket-Protocol"
+      }
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "${ispName} ss",
+      "server": "${bug}",
+      "server_port": 443,
+      "method": "none",
+      "password": "${UUIDS}",
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mux=0;path=${pathinfo}${proxyHost}=${proxyPort};host=${geo81};tls=1"
+    },`;
+    }
+  }
+  return `#### BY : GEO PROJECT ####
+
+{
+  "log": {
+    "level": "info"
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "remote-dns",
+        "address": "https://family.cloudflare-dns.com/dns-query",
+        "address_resolver": "direct-dns",
+        "strategy": "ipv4_only"
+      },
+      {
+        "tag": "direct-dns",
+        "address": "local",
+        "strategy": "ipv4_only"
+      },
+      {
+        "tag": "dns-final",
+        "address": "local",
+        "address_resolver": "dns-local",
+        "strategy": "ipv4_only"
+      },
+      {
+        "tag": "dns-local",
+        "address": "local"
+      },
+      {
+        "tag": "dns-block",
+        "address": "rcode://success"
+      }
+    ],
+    "rules": [
+      {
+        "domain": [
+          "family.cloudflare-dns.com",
+          "${bug}"
+        ],
+        "server": "direct-dns"
+      }
+    ],
+    "final": "dns-final",
+    "independent_cache": true
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "mtu": 1400,
+      "inet4_address": "172.19.0.1/30",
+      "inet6_address": "fdfe:dcba:9876::1/126",
+      "auto_route": true,
+      "strict_route": true,
+      "endpoint_independent_nat": true,
+      "stack": "mixed",
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "Internet",
+      "type": "selector",
+      "outbounds": [
+        "Best Latency",
+${bex}        "direct"
+      ]
+    },
+    {
+      "type": "urltest",
+      "tag": "Best Latency",
+      "outbounds": [
+${bex}        "direct"
+      ],
+      "url": "https://ping.geo81.us.kg",
+      "interval": "30s"
+    },
+${conf}
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "direct",
+      "tag": "bypass"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "port": 53,
+        "outbound": "dns-out"
+      },
+      {
+        "inbound": "dns-in",
+        "outbound": "dns-out"
+      },
+      {
+        "network": "udp",
+        "port": 443,
+        "outbound": "block"
+      },
+      {
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      }
+    ],
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": false
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/archive/gh-pages.zip",
+      "external_ui_download_detour": "Internet",
+      "secret": "bitzblack",
+      "default_mode": "rule"
+    }
+  }
+}`;
+}
+async function generateNekoboxSub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
+      }
+      return false;
+    });
+  }
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
+  }
+  let conf = '';
+  let bex = '';
+  let count = 1;
+
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const emojiFlag = getEmojiFlag(line.split(',')[2]); // Konversi ke emoji bendera
+    const sanitize = (text) => text.replace(/[\n\r]+/g, "").trim(); // Hapus newline dan spasi ekstra
+    let ispName = sanitize(`${emojiFlag} (${line.split(',')[2]}) ${line.split(',')[3]} ${count ++}`);
+    const UUIDS = `${generateUUIDv4()}`;
+    const ports = tls ? '443' : '80';
+    const snio = tls ? `\n      "tls": {\n        "disable_sni": false,\n        "enabled": true,\n        "insecure": true,\n        "server_name": "${geo81}"\n      },` : '';
+    if (type === 'vless') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "domain_strategy": "ipv4_only",
+      "flow": "",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "packet_encoding": "xudp",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName}",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "${UUIDS}"
+    },`;
+    } else if (type === 'trojan') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "domain_strategy": "ipv4_only",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "password": "${UUIDS}",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName}",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "trojan"
+    },`;
+    } else if (type === 'ss') {
+      bex += `        "${ispName}",\n`
+      conf += `
+    {
+      "type": "shadowsocks",
+      "tag": "${ispName}",
+      "server": "${bug}",
+      "server_port": 443,
+      "method": "none",
+      "password": "${UUIDS}",
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mux=0;path=${pathinfo}${proxyHost}=${proxyPort};host=${geo81};tls=1"
+    },`;
+    } else if (type === 'mix') {
+      bex += `        "${ispName} vless",\n        "${ispName} trojan",\n        "${ispName} ss",\n`
+      conf += `
+    {
+      "domain_strategy": "ipv4_only",
+      "flow": "",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "packet_encoding": "xudp",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName} vless",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "${UUIDS}"
+    },
+    {
+      "domain_strategy": "ipv4_only",
+      "multiplex": {
+        "enabled": false,
+        "max_streams": 32,
+        "protocol": "smux"
+      },
+      "password": "${UUIDS}",
+      "server": "${bug}",
+      "server_port": ${ports},
+      "tag": "${ispName} trojan",${snio}
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "headers": {
+          "Host": "${geo81}"
+        },
+        "max_early_data": 0,
+        "path": "${pathinfo}${proxyHost}=${proxyPort}",
+        "type": "ws"
+      },
+      "type": "trojan"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "${ispName} ss",
+      "server": "${bug}",
+      "server_port": 443,
+      "method": "none",
+      "password": "${UUIDS}",
+      "plugin": "v2ray-plugin",
+      "plugin_opts": "mux=0;path=${pathinfo}${proxyHost}=${proxyPort};host=${geo81};tls=1"
+    },`;
+    }
+  }
+  return `#### BY : GEO PROJECT ####
+
+{
+  "dns": {
+    "final": "dns-final",
+    "independent_cache": true,
+    "rules": [
+      {
+        "disable_cache": false,
+        "domain": [
+          "family.cloudflare-dns.com",
+          "${bug}"
+        ],
+        "server": "direct-dns"
+      }
+    ],
+    "servers": [
+      {
+        "address": "https://family.cloudflare-dns.com/dns-query",
+        "address_resolver": "direct-dns",
+        "strategy": "ipv4_only",
+        "tag": "remote-dns"
+      },
+      {
+        "address": "local",
+        "strategy": "ipv4_only",
+        "tag": "direct-dns"
+      },
+      {
+        "address": "local",
+        "address_resolver": "dns-local",
+        "strategy": "ipv4_only",
+        "tag": "dns-final"
+      },
+      {
+        "address": "local",
+        "tag": "dns-local"
+      },
+      {
+        "address": "rcode://success",
+        "tag": "dns-block"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "../cache/clash.db",
+      "store_fakeip": true
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "../files/yacd"
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "0.0.0.0",
+      "listen_port": 6450,
+      "override_address": "8.8.8.8",
+      "override_port": 53,
+      "tag": "dns-in",
+      "type": "direct"
+    },
+    {
+      "domain_strategy": "",
+      "endpoint_independent_nat": true,
+      "inet4_address": [
+        "172.19.0.1/28"
+      ],
+      "mtu": 9000,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "stack": "system",
+      "tag": "tun-in",
+      "type": "tun"
+    },
+    {
+      "domain_strategy": "",
+      "listen": "0.0.0.0",
+      "listen_port": 2080,
+      "sniff": true,
+      "sniff_override_destination": true,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "outbounds": [
+        "Best Latency",
+${bex}        "direct"
+      ],
+      "tag": "Internet",
+      "type": "selector"
+    },
+    {
+      "interval": "1m0s",
+      "outbounds": [
+${bex}        "direct"
+      ],
+      "tag": "Best Latency",
+      "type": "urltest",
+      "url": "https://detectportal.firefox.com/success.txt"
+    },
+${conf}
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    },
+    {
+      "tag": "dns-out",
+      "type": "dns"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {
+        "outbound": "dns-out",
+        "port": [
+          53
+        ]
+      },
+      {
+        "inbound": [
+          "dns-in"
+        ],
+        "outbound": "dns-out"
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          443
+        ],
+        "port_range": []
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}`;
+}
+async function generateV2rayngSub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
+      }
+      return false;
+    });
+  }
+  
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
   }
 
-  addInfo(text) {
-    text = `<span>${text}</span>`;
-    this.html = this.html.replaceAll("PLACEHOLDER_INFO", `${text}\nPLACEHOLDER_INFO`);
+  let conf = '';
+
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const countryCode = parts[2]; // Kode negara ISO
+    const isp = parts[3]; // Informasi ISP
+
+    // Gunakan teks Latin-1 untuk menggantikan emoji flag
+    const countryText = `[${countryCode}]`; // Format bendera ke teks Latin-1
+    const ispInfo = `${countryText} ${isp}`;
+    const UUIDS = `${generateUUIDv4()}`;
+
+    if (type === 'vless') {
+      if (tls) {
+        conf += `vless://${UUIDS}\u0040${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${ispInfo}\n`;
+      } else {
+        conf += `vless://${UUIDS}\u0040${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${ispInfo}\n`;
+      }
+    } else if (type === 'trojan') {
+      if (tls) {
+        conf += `trojan://${UUIDS}\u0040${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${ispInfo}\n`;
+      } else {
+        conf += `trojan://${UUIDS}\u0040${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${ispInfo}\n`;
+      }
+    } else if (type === 'ss') {
+      if (tls) {
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:443?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=tls&sni=${geo81}#${ispInfo}\n`;
+      } else {
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:80?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&sni=${geo81}#${ispInfo}\n`;
+      }
+    } else if (type === 'mix') {
+      if (tls) {
+        conf += `vless://${UUIDS}\u0040${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${ispInfo}\n`;
+        conf += `trojan://${UUIDS}\u0040${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${ispInfo}\n`;
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:443?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=tls&sni=${geo81}#${ispInfo}\n`;
+      } else {
+        conf += `vless://${UUIDS}\u0040${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${ispInfo}\n`;
+        conf += `trojan://${UUIDS}\u0040${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${ispInfo}\n`;
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:80?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&sni=${geo81}#${ispInfo}\n`;
+      }
+    }
   }
 
-    registerProxies(data, proxies) {
-        this.proxies.push({
-            ...data,
-            list: proxies,
-        });
-    }
+  const base64Conf = btoa(conf.replace(/ /g, '%20'));
 
-    buildProxyGroup() {
-    let tableRows = "";
-    for (let i = 0; i < this.proxies.length; i++) {
-        const prx = this.proxies[i];
-        const proxyConfigs = prx.list.join('\\n');
-        tableRows += `
-            <tr class="border-t border-gray-200 dark:border-gray-700">
-                <td class="px-4 py-1 text-gray-900 dark:text-white text-center">${this.startIndex + i + 1}.</td>
-                <td class="px-4 py-1 text-gray-900 dark:text-white text-center">${prx.prxIP}:${prx.prxPort}</td>
-                <td id="ping-${i}" class="px-4 py-1 text-gray-900 dark:text-white text-center">${prx.prxIP}:${prx.prxPort}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm flex items-center justify-center text-gray-900 dark:text-white">
-                    <img src="https://hatscripts.github.io/circle-flags/flags/${prx.country.toLowerCase()}.svg" width="20" class="inline mr-2 rounded-full"/>
-                    ${prx.country}
-                </td>
-                <td class="px-4 py-1 text-gray-900 dark:text-white text-center">${prx.org}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                    <button onclick="promptForRemarkAndCopy(\`${proxyConfigs}\`)" class="px-4 py-1 rounded text-sm font-semibold transition-colors duration-200 action-btn">Config</button>
-                </td>
-            </tr>
-        `;
-    }
-
-    const table = `
-     <div class="bg-white/30 dark:bg-gray-800/50 rounded-lg shadow-xl p-4">
-                            <div class="overflow-x-auto shadow-lg rounded-lg">
-                                <table class="min-w-full table-theme">
-                                    <thead>
-                                        <tr>
-                    <th class="px-4 py-1 text-center text-sm">NO.</th>
-                    <th class="px-4 py-1 text-center text-sm">IP</th>
-                    <th class="px-4 py-1 text-center text-sm">STATUS</th>
-                    <th class="px-4 py-1 text-center text-sm">COUNTRY</th>
-                    <th class="px-4 py-1 text-center text-sm">ISP</th>
-                    <th class="px-4 py-1 text-center text-sm">ACTION</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${tableRows}
-            </tbody>
-        </table>
-    </div>
-</div>
-    `;
-
-    this.html = this.html.replaceAll("PLACEHOLDER_PROXY_GROUP", table);
+  return base64Conf;
 }
-
-    buildCountryFlag() {
-        const prxBankUrl = this.url.searchParams.get("prx-list");
-        const selectedCC = this.url.searchParams.get("cc");
-        const flagList = [];
-        for (const proxy of cachedPrxList) {
-            flagList.push(proxy.country);
-        }
-
-        let flagElement = "";
-        for (const flag of new Set(flagList)) {
-            const isSelected = selectedCC === flag;
-            // Apply different classes based on selection state
-            const linkClasses = isSelected 
-                ? 'border-2 border-blue-400 rounded-lg p-0.5' // Classes for selected flag
-                : 'py-1';                                     // Classes for non-selected flag
-
-            flagElement += `<a href="/sub?cc=${flag}${prxBankUrl ? "&prx-list=" + prxBankUrl : ""
-                }" class="flex items-center justify-center ${linkClasses}" ><img width=30 src="https://hatscripts.github.io/circle-flags/flags/${flag.toLowerCase()}.svg" /></a>`;
-        }
-
-        this.html = this.html.replaceAll("PLACEHOLDER_BENDERA_NEGARA", flagElement);
+async function generateV2raySub(type, bug, geo81, tls, country = null, limit = null) {
+  const proxyList = await getProxyList();
+  let ips = proxyList.map(p => `${p.proxyIP},${p.proxyPort},${p.country},${p.org}`);
+  if (country && country.toLowerCase() === 'random') {
+    // Pilih data secara acak jika country=random
+    ips = ips.sort(() => Math.random() - 0.5); // Acak daftar proxy
+  } else if (country) {
+    // Filter berdasarkan country jika bukan "random"
+    ips = ips.filter(line => {
+      const parts = line.split(',');
+      if (parts.length > 1) {
+        const lineCountry = parts[2].toUpperCase();
+        return lineCountry === country.toUpperCase();
+      }
+      return false;
+    });
+  }
+  if (limit && !isNaN(limit)) {
+    ips = ips.slice(0, limit); // Batasi jumlah proxy berdasarkan limit
+  }
+  let conf = '';
+  for (let line of ips) {
+    const parts = line.split(',');
+    const proxyHost = parts[0];
+    const proxyPort = parts[1] || 443;
+    const emojiFlag = getEmojiFlag(line.split(',')[2]); // Konversi ke emoji bendera
+    const UUIDS = generateUUIDv4();
+    const information = encodeURIComponent(`${emojiFlag} (${line.split(',')[2]}) ${line.split(',')[3]}`);
+    if (type === 'vless') {
+      if (tls) {
+        conf += `vless://${UUIDS}@${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${information}\n`;
+      } else {
+        conf += `vless://${UUIDS}@${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${information}\n`;
+      }
+    } else if (type === 'trojan') {
+      if (tls) {
+        conf += `trojan://${UUIDS}@${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${information}\n`;
+      } else {
+        conf += `trojan://${UUIDS}@${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${information}\n`;
+      }
+    } else if (type === 'ss') {
+      if (tls) {
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:443?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=tls&sni=${geo81}#${information}\n`;
+      } else {
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:80?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&sni=${geo81}#${information}\n`;
+      }
+    } else if (type === 'mix') {
+      if (tls) {
+        conf += `vless://${UUIDS}@${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${information}\n`;
+        conf += `trojan://${UUIDS}@${bug}:443?encryption=none&security=tls&sni=${geo81}&fp=randomized&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}#${information}\n`;
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:443?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=tls&sni=${geo81}#${information}\n`;
+      } else {
+        conf += `vless://${UUIDS}@${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${information}\n`;
+        conf += `trojan://${UUIDS}@${bug}:80?path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&encryption=none&host=${geo81}&fp=randomized&type=ws&sni=${geo81}#${information}\n`;
+        conf += `ss://${btoa(`none:${UUIDS}`)}%3D@${bug}:80?encryption=none&type=ws&host=${geo81}&path=%2FFree-VPN-CF-Geo-Project%2F${proxyHost}%3D${proxyPort}&security=none&sni=${geo81}#${information}\n`;
+      }
     }
-
-    setPagination(info, html) {
-        this.html = this.html.replace('PLACEHOLDER_PAGINATION_INFO', info);
-        this.html = this.html.replace('PLACEHOLDER_PAGE_BUTTON', html);
-    }
-
-    build() {
-        this.buildProxyGroup();
-        this.buildCountryFlag();
-
-        this.html = this.html.replaceAll("PLACEHOLDER_API_READY", isApiReady ? "block" : "hidden");
-
-        let whatsappButton = '';
-        if (WHATSAPP_NUMBER) {
-            whatsappButton = `<a href="https://wa.me/${WHATSAPP_NUMBER}" target="_blank">
-                              <button class="bg-green-500 hover:bg-green-600 rounded-full border-2 border-gray-900 p-2 block transition-colors duration-200">
-                                <img src="https://geoproject.biz.id/circle-flags/whatsapp.png" alt="WhatsApp Icon" class="size-6">
-                              </button>
-                            </a>`;
-        }
-        this.html = this.html.replace('PLACEHOLDER_WHATSAPP_BUTTON', whatsappButton);
-
-        let telegramButton = '';
-        if (TELEGRAM_USERNAME) {
-            telegramButton = `<a href="https://t.me/${TELEGRAM_USERNAME}" target="_blank">
-                              <button class="bg-blue-500 hover:bg-blue-600 rounded-full border-2 border-gray-900 p-2 block transition-colors duration-200">
-                                <img src="https://geoproject.biz.id/circle-flags/telegram.png" alt="Telegram Icon" class="size-6">
-                              </button>
-                            </a>`;
-        }
-        this.html = this.html.replace('PLACEHOLDER_TELEGRAM_BUTTON', telegramButton);
-
-        this.html = this.html.replaceAll('PLACEHOLDER_CHECK_PROXY_URL', `https://${serviceName}.${rootDomain}/check?target=`);
-        this.html = this.html.replaceAll('PLACEHOLDER_ROOT_DOMAIN', `${serviceName}.${rootDomain}`);
-        this.html = this.html.replaceAll('PLACEHOLDER_CONVERTER_URL', CONVERTER_URL);
-        this.html = this.html.replaceAll('PLACEHOLDER_DONATE_LINK', DONATE_LINK);
-
-        this.buildDropdowns();
-
-        return this.html.replaceAll(/PLACEHOLDER_\w+/gim, "");
-    }
-
-buildDropdowns() {
-    const selectedProtocol = this.url.searchParams.get('vpn') || 'all';
-    const selectedCountry = this.url.searchParams.get('cc') || 'all';
-    const selectedHost = this.url.searchParams.get('host') || APP_DOMAIN;
-    const selectedPort = this.url.searchParams.get('port') || 'all';
-
-    // Protocol Dropdown
-    const protocols = [{
-        value: 'all',
-        label: 'All Protocols'
-    }, {
-        value: 'vless',
-        label: 'VLESS'
-    }, {
-        value: 'trojan',
-        label: 'TROJAN'
-    }, {
-        value: 'ss',
-        label: 'SHADOWSOCKS'
-    }];
-
-    let protocolOptions = protocols.map(proto =>
-        `<option value="${proto.value}" ${selectedProtocol === proto.value ? 'selected' : ''}>${proto.label}</option>`
-    ).join('');
-
-    this.html = this.html.replace('PLACEHOLDER_PROTOCOL_DROPDOWN', `
-        <div class="relative max-w-xs mx-auto">
-            <label for="protocol-select" class="block font-medium mb-2 text-gray-600 dark:text-gray-300 text-sm text-center">Protocol</label>
-            <select onchange="applyFilters()" id="protocol-select" class="w-full px-2 py-1 rounded-lg input-dark text-base focus:ring-2">
-                ${protocolOptions}
-            </select>
-        </div>
-    `);
-
-    // Country Dropdown
-    const countries = new Set(cachedPrxList.map(p => p.country));
-    let countryOptions = `<option value="all" ${'all' === selectedCountry ? 'selected' : ''}>All Countries</option>`;
-
-    countryOptions += [...countries].sort().map(country =>
-        `<option value="${country}" ${selectedCountry === country ? 'selected' : ''}>${getFlagEmoji(country)} ${country}</option>`
-    ).join('');
-
-    this.html = this.html.replace('PLACEHOLDER_COUNTRY_DROPDOWN', `
-        <div class="relative max-w-xs mx-auto">
-            <label for="country-select" class="block font-medium mb-2 text-gray-600 dark:text-gray-300 text-sm text-center">Country</label>
-            <select onchange="applyFilters()" id="country-select" class="w-full px-2 py-1 rounded-lg input-dark text-base focus:ring-2">
-                ${countryOptions}
-            </select>
-        </div>
-    `);
-
-    // Host Dropdown
-    const hosts = [{
-        value: APP_DOMAIN,
-        label: 'Default Host (' + APP_DOMAIN + ')'
-    }];
-
-    if (this.wildcardDomains.length > 0) {
-        this.wildcardDomains.forEach(domain => {
-            const subDomain = domain.hostname.replace(`.${APP_DOMAIN}`, '').replace(`.${this.rootDomain}`, '');
-            hosts.push({
-                value: subDomain,
-                label: subDomain,
-            });
-        });
-    }
-
-    let hostOptions = hosts.map(host =>
-        `<option value="${host.value}" ${selectedHost === host.value ? 'selected' : ''}>${host.label}</option>`
-    ).join('');
-
-    this.html = this.html.replace('PLACEHOLDER_HOST_DROPDOWN', `
-        <div class="relative max-w-xs mx-auto">
-            <label for="host-select" class="block font-medium mb-2 text-gray-600 dark:text-gray-300 text-sm text-center">Wildcard/Host</label>
-            <select onchange="applyFilters()" id="host-select" class="w-full px-2 py-1 rounded-lg input-dark text-base focus:ring-2">
-                ${hostOptions}
-            </select>
-        </div>
-    `);
-
-    // Port Dropdown
-    const ports = [{
-        value: 'all',
-        label: 'All Ports'
-    }, {
-        value: '443',
-        label: 'TLS (443)'
-    }, {
-        value: '80',
-        label: 'NTLS (80)'
-    }];
-
-    let portOptions = ports.map(port =>
-        `<option value="${port.value}" ${selectedPort === port.value ? 'selected' : ''}>${port.label}</option>`
-    ).join('');
-
-    this.html = this.html.replace('PLACEHOLDER_PORT_DROPDOWN', `
-        <div class="relative max-w-xs mx-auto">
-            <label for="port-select" class="block font-medium mb-2 text-gray-600 dark:text-gray-300 text-sm text-center">Security/Port</label>
-            <select onchange="applyFilters()" id="port-select" class="w-full px-2 py-1 rounded-lg input-dark text-base focus:ring-2">
-                ${portOptions}
-            </select>
-        </div>
-    `);
+  }
+  
+  return conf;
 }
+function generateUUIDv4() {
+  const randomValues = crypto.getRandomValues(new Uint8Array(16));
+  randomValues[6] = (randomValues[6] & 0x0f) | 0x40;
+  randomValues[8] = (randomValues[8] & 0x3f) | 0x80;
+  return [
+    randomValues[0].toString(16).padStart(2, '0'),
+    randomValues[1].toString(16).padStart(2, '0'),
+    randomValues[2].toString(16).padStart(2, '0'),
+    randomValues[3].toString(16).padStart(2, '0'),
+    randomValues[4].toString(16).padStart(2, '0'),
+    randomValues[5].toString(16).padStart(2, '0'),
+    randomValues[6].toString(16).padStart(2, '0'),
+    randomValues[7].toString(16).padStart(2, '0'),
+    randomValues[8].toString(16).padStart(2, '0'),
+    randomValues[9].toString(16).padStart(2, '0'),
+    randomValues[10].toString(16).padStart(2, '0'),
+    randomValues[11].toString(16).padStart(2, '0'),
+    randomValues[12].toString(16).padStart(2, '0'),
+    randomValues[13].toString(16).padStart(2, '0'),
+    randomValues[14].toString(16).padStart(2, '0'),
+    randomValues[15].toString(16).padStart(2, '0'),
+  ].join('').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
 }
